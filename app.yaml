@@ -1,0 +1,14 @@
+env: flex
+runtime: custom
+
+resources:
+  cpu: 2
+  memory_gb: 4
+  disk_size_gb: 50
+
+automatic_scaling:
+  max_num_instances: 3
+  cool_down_period_sec: 60
+
+env_variables:
+  BUCKET: "nixery-layers"
