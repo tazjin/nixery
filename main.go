@@ -32,11 +32,20 @@ import (
 	"cloud.google.com/go/storage"
 )
 
-// ManifestMediaType stores the Content-Type used for the manifest itself. This
-// corresponds to the "Image Manifest V2, Schema 2" described on this page:
+// config holds the Nixery configuration options.
+type config struct {
+	bucket  string // GCS bucket to cache & serve layers
+	builder string // Nix derivation for building images
+	web     string // Static files to serve over HTTP
+	port    string // Port on which to launch HTTP server
+}
+
+// ManifestMediaType is the Content-Type used for the manifest itself.
+// This corresponds to the "Image Manifest V2, Schema 2" described on
+// this page:
 //
 // https://docs.docker.com/registry/spec/manifest-v2-2/
-const ManifestMediaType string = "application/vnd.docker.distribution.manifest.v2+json"
+const manifestMediaType string = "application/vnd.docker.distribution.manifest.v2+json"
 
 // Image represents the information necessary for building a container image. This can
 // be either a list of package names (corresponding to keys in the nixpkgs set) or a
@@ -102,16 +111,19 @@ func convenienceNames(packages []string) []string {
 
 // Call out to Nix and request that an image be built. Nix will, upon success, return
 // a manifest for the container image.
-func buildImage(image *image, ctx *context.Context, bucket *storage.BucketHandle) ([]byte, error) {
-	// This file is made available at runtime via Blaze. See the `data` declaration in `BUILD`
-	nixPath := "experimental/users/tazjin/nixery/build-registry-image.nix"
-
+func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage.BucketHandle) ([]byte, error) {
 	packages, err := json.Marshal(image.packages)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command("nix-build", "--no-out-link", "--show-trace", "--argstr", "name", image.name, "--argstr", "packages", string(packages), nixPath)
+	cmd := exec.Command(
+		"nix-build",
+		"--no-out-link",
+		"--show-trace",
+		"--argstr", "name", image.name,
+		"--argstr", "packages", string(packages), cfg.builder,
+	)
 
 	outpipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -206,11 +218,11 @@ func uploadLayer(ctx *context.Context, bucket *storage.BucketHandle, layer strin
 // layerRedirect constructs the public URL of the layer object in the Cloud Storage bucket
 // and redirects the client there.
 //
-// The Docker client is known to follow redirects, but this might not be true for all other
-// registry clients.
-func layerRedirect(w http.ResponseWriter, bucket string, digest string) {
-	log.Printf("Redirecting layer '%s' request to bucket '%s'\n", digest, bucket)
-	url := fmt.Sprintf("https://storage.googleapis.com/%s/layers/%s", bucket, digest)
+// The Docker client is known to follow redirects, but this might not
+// be true for all other registry clients.
+func layerRedirect(w http.ResponseWriter, cfg *config, digest string) {
+	log.Printf("Redirecting layer '%s' request to bucket '%s'\n", digest, cfg.bucket)
+	url := fmt.Sprintf("https://storage.googleapis.com/%s/layers/%s", cfg.bucket, digest)
 	w.Header().Set("Location", url)
 	w.WriteHeader(303)
 }
@@ -219,15 +231,15 @@ func layerRedirect(w http.ResponseWriter, bucket string, digest string) {
 // stored after Nix builds. Nixery does not directly serve layers to registry clients, instead it
 // redirects them to the public URLs of the Cloud Storage bucket.
 //
-// The bucket is required for Nixery to function correctly, hence fatal errors are generated in case
-// it fails to be set up correctly.
-func prepareBucket(ctx *context.Context, bucket string) *storage.BucketHandle {
+// The bucket is required for Nixery to function correctly, hence
+// fatal errors are generated in case it fails to be set up correctly.
+func prepareBucket(ctx *context.Context, cfg *config) *storage.BucketHandle {
 	client, err := storage.NewClient(*ctx)
 	if err != nil {
 		log.Fatalln("Failed to set up Cloud Storage client:", err)
 	}
 
-	bkt := client.Bucket(bucket)
+	bkt := client.Bucket(cfg.bucket)
 
 	if _, err := bkt.Attrs(*ctx); err != nil {
 		log.Fatalln("Could not access configured bucket", err)
@@ -239,24 +251,29 @@ func prepareBucket(ctx *context.Context, bucket string) *storage.BucketHandle {
 var manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/(\w+)$`)
 var layerRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
 
-func main() {
-	bucketName := os.Getenv("BUCKET")
-	if bucketName == "" {
-		log.Fatalln("GCS bucket for layer storage must be specified")
+func getConfig(key, desc string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalln(desc + " must be specified")
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "5726"
+	return value
+}
+
+func main() {
+	cfg := &config{
+		bucket: getConfig("BUCKET", "GCS bucket for layer storage"),
+		builder: getConfig("NIX_BUILDER", "Nix image builder code"),
+		web: getConfig("WEB_DIR", "Static web file dir"),
+		port: getConfig("PORT", "HTTP port"),
 	}
 
 	ctx := context.Background()
-	bucket := prepareBucket(&ctx, bucketName)
+	bucket := prepareBucket(&ctx, cfg)
 
-	log.Printf("Starting Kubernetes Nix controller on port %s\n", port)
+	log.Printf("Starting Kubernetes Nix controller on port %s\n", cfg.port)
 
-	log.Fatal(http.ListenAndServe(":"+port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// When running on AppEngine, HTTP traffic should be redirected to HTTPS.
+	log.Fatal(http.ListenAndServe(":"+cfg.port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//
 		// This is achieved here by enforcing HSTS (with a one week duration) on responses.
 		if r.Header.Get("X-Forwarded-Proto") == "http" && strings.Contains(r.Host, "appspot.com") {
@@ -265,7 +282,7 @@ func main() {
 
 		// Serve an index page to anyone who visits the registry's base URL:
 		if r.RequestURI == "/" {
-			index, _ := ioutil.ReadFile("experimental/users/tazjin/nixery/index.html")
+			index, _ := ioutil.ReadFile(cfg.web + "/index.html")
 			w.Header().Add("Content-Type", "text/html")
 			w.Write(index)
 			return
@@ -283,14 +300,14 @@ func main() {
 			imageName := manifestMatches[1]
 			log.Printf("Requesting manifest for image '%s'", imageName)
 			image := imageFromName(manifestMatches[1])
-			manifest, err := buildImage(&image, &ctx, bucket)
+			manifest, err := buildImage(&ctx, cfg, &image, bucket)
 
 			if err != nil {
 				log.Println("Failed to build image manifest", err)
 				return
 			}
 
-			w.Header().Add("Content-Type", ManifestMediaType)
+			w.Header().Add("Content-Type", manifestMediaType)
 			w.Write(manifest)
 			return
 		}
@@ -300,7 +317,7 @@ func main() {
 		layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
 		if len(layerMatches) == 3 {
 			digest := layerMatches[2]
-			layerRedirect(w, bucketName, digest)
+			layerRedirect(w, cfg, digest)
 			return
 		}
 
