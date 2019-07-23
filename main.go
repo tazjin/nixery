@@ -40,31 +40,31 @@ type config struct {
 	port    string // Port on which to launch HTTP server
 }
 
-// ManifestMediaType is the Content-Type used for the manifest itself.
-// This corresponds to the "Image Manifest V2, Schema 2" described on
-// this page:
+// ManifestMediaType is the Content-Type used for the manifest itself. This
+// corresponds to the "Image Manifest V2, Schema 2" described on this page:
 //
 // https://docs.docker.com/registry/spec/manifest-v2-2/
 const manifestMediaType string = "application/vnd.docker.distribution.manifest.v2+json"
 
-// Image represents the information necessary for building a container image. This can
-// be either a list of package names (corresponding to keys in the nixpkgs set) or a
-// Nix expression that results in a *list* of derivations.
+// Image represents the information necessary for building a container image.
+// This can be either a list of package names (corresponding to keys in the
+// nixpkgs set) or a Nix expression that results in a *list* of derivations.
 type image struct {
 	// Name of the container image.
 	name string
 
-	// Names of packages to include in the image. These must correspond directly to
-	// top-level names of Nix packages in the nixpkgs tree.
+	// Names of packages to include in the image. These must correspond
+	// directly to top-level names of Nix packages in the nixpkgs tree.
 	packages []string
 }
 
-// BuildResult represents the output of calling the Nix derivation responsible for building
-// registry images.
+// BuildResult represents the output of calling the Nix derivation responsible
+// for building registry images.
 //
-// The `layerLocations` field contains the local filesystem paths to each individual image layer
-// that will need to be served, while the `manifest` field contains the JSON-representation of
-// the manifest that needs to be served to the client.
+// The `layerLocations` field contains the local filesystem paths to each
+// individual image layer that will need to be served, while the `manifest`
+// field contains the JSON-representation of the manifest that needs to be
+// served to the client.
 //
 // The later field is simply treated as opaque JSON and passed through.
 type BuildResult struct {
@@ -78,7 +78,8 @@ type BuildResult struct {
 // imageFromName parses an image name into the corresponding structure which can
 // be used to invoke Nix.
 //
-// It will expand convenience names under the hood (see the `convenienceNames` function below).
+// It will expand convenience names under the hood (see the `convenienceNames`
+// function below).
 func imageFromName(name string) image {
 	packages := strings.Split(name, "/")
 	return image{
@@ -87,15 +88,15 @@ func imageFromName(name string) image {
 	}
 }
 
-// convenienceNames expands convenience package names defined by Nixery which let users
-// include commonly required sets of tools in a container quickly.
+// convenienceNames expands convenience package names defined by Nixery which
+// let users include commonly required sets of tools in a container quickly.
 //
 // Convenience names must be specified as the first package in an image.
 //
 // Currently defined convenience names are:
 //
 // * `shell`: Includes bash, coreutils and other common command-line tools
-// * `builder`: Includes the standard build environment, as well as everything from `shell`
+// * `builder`: All of the above and the standard build environment
 func convenienceNames(packages []string) []string {
 	shellPackages := []string{"bashInteractive", "coreutils", "moreutils", "nano"}
 	builderPackages := append(shellPackages, "stdenv")
@@ -109,8 +110,8 @@ func convenienceNames(packages []string) []string {
 	}
 }
 
-// Call out to Nix and request that an image be built. Nix will, upon success, return
-// a manifest for the container image.
+// Call out to Nix and request that an image be built. Nix will, upon success,
+// return a manifest for the container image.
 func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage.BucketHandle) ([]byte, error) {
 	packages, err := json.Marshal(image.packages)
 	if err != nil {
@@ -139,7 +140,7 @@ func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage
 		log.Println("Error starting nix-build:", err)
 		return nil, err
 	}
-	log.Printf("Started Nix image build for ''%s'", image.name)
+	log.Printf("Started Nix image build for '%s'", image.name)
 
 	stdout, _ := ioutil.ReadAll(outpipe)
 	stderr, _ := ioutil.ReadAll(errpipe)
@@ -157,8 +158,9 @@ func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage
 		return nil, err
 	}
 
-	// The build output returned by Nix is deserialised to add all contained layers to the
-	// bucket. Only the manifest itself is re-serialised to JSON and returned.
+	// The build output returned by Nix is deserialised to add all
+	// contained layers to the bucket. Only the manifest itself is
+	// re-serialised to JSON and returned.
 	var result BuildResult
 	err = json.Unmarshal(buildOutput, &result)
 	if err != nil {
@@ -175,19 +177,20 @@ func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage
 	return json.Marshal(result.Manifest)
 }
 
-// uploadLayer uploads a single layer to Cloud Storage bucket. Before writing any data
-// the bucket is probed to see if the file already exists.
+// uploadLayer uploads a single layer to Cloud Storage bucket. Before writing
+// any data the bucket is probed to see if the file already exists.
 //
-// If the file does exist, its MD5 hash is verified to ensure that the stored file is
-// not - for example - a fragment of a previous, incomplete upload.
+// If the file does exist, its MD5 hash is verified to ensure that the stored
+// file is not - for example - a fragment of a previous, incomplete upload.
 func uploadLayer(ctx *context.Context, bucket *storage.BucketHandle, layer string, path string, md5 []byte) error {
 	layerKey := fmt.Sprintf("layers/%s", layer)
 	obj := bucket.Object(layerKey)
 
-	// Before uploading a layer to the bucket, probe whether it already exists.
+	// Before uploading a layer to the bucket, probe whether it already
+	// exists.
 	//
-	// If it does and the MD5 checksum matches the expected one, the layer upload
-	// can be skipped.
+	// If it does and the MD5 checksum matches the expected one, the layer
+	// upload can be skipped.
 	attrs, err := obj.Attrs(*ctx)
 
 	if err == nil && bytes.Equal(attrs.MD5, md5) {
@@ -215,11 +218,11 @@ func uploadLayer(ctx *context.Context, bucket *storage.BucketHandle, layer strin
 	return nil
 }
 
-// layerRedirect constructs the public URL of the layer object in the Cloud Storage bucket
-// and redirects the client there.
+// layerRedirect constructs the public URL of the layer object in the Cloud
+// Storage bucket and redirects the client there.
 //
-// The Docker client is known to follow redirects, but this might not
-// be true for all other registry clients.
+// The Docker client is known to follow redirects, but this might not be true
+// for all other registry clients.
 func layerRedirect(w http.ResponseWriter, cfg *config, digest string) {
 	log.Printf("Redirecting layer '%s' request to bucket '%s'\n", digest, cfg.bucket)
 	url := fmt.Sprintf("https://storage.googleapis.com/%s/layers/%s", cfg.bucket, digest)
@@ -227,12 +230,13 @@ func layerRedirect(w http.ResponseWriter, cfg *config, digest string) {
 	w.WriteHeader(303)
 }
 
-// prepareBucket configures the handle to a Cloud Storage bucket in which individual layers will be
-// stored after Nix builds. Nixery does not directly serve layers to registry clients, instead it
-// redirects them to the public URLs of the Cloud Storage bucket.
+// prepareBucket configures the handle to a Cloud Storage bucket in which
+// individual layers will be stored after Nix builds. Nixery does not directly
+// serve layers to registry clients, instead it redirects them to the public
+// URLs of the Cloud Storage bucket.
 //
-// The bucket is required for Nixery to function correctly, hence
-// fatal errors are generated in case it fails to be set up correctly.
+// The bucket is required for Nixery to function correctly, hence fatal errors
+// are generated in case it fails to be set up correctly.
 func prepareBucket(ctx *context.Context, cfg *config) *storage.BucketHandle {
 	client, err := storage.NewClient(*ctx)
 	if err != nil {
@@ -274,13 +278,17 @@ func main() {
 	log.Printf("Starting Kubernetes Nix controller on port %s\n", cfg.port)
 
 	log.Fatal(http.ListenAndServe(":"+cfg.port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// When running on AppEngine, HTTP traffic should be redirected
+		// to HTTPS.
 		//
-		// This is achieved here by enforcing HSTS (with a one week duration) on responses.
+		// This is achieved here by enforcing HSTS (with a one week
+		// duration) on responses.
 		if r.Header.Get("X-Forwarded-Proto") == "http" && strings.Contains(r.Host, "appspot.com") {
 			w.Header().Add("Strict-Transport-Security", "max-age=604800")
 		}
 
-		// Serve an index page to anyone who visits the registry's base URL:
+		// Serve an index page to anyone who visits the registry's base
+		// URL:
 		if r.RequestURI == "/" {
 			index, _ := ioutil.ReadFile(cfg.web + "/index.html")
 			w.Header().Add("Content-Type", "text/html")
@@ -312,8 +320,9 @@ func main() {
 			return
 		}
 
-		// Serve an image layer. For this we need to first ask Nix for the
-		// manifest, then proceed to extract the correct layer from it.
+		// Serve an image layer. For this we need to first ask Nix for
+		// the manifest, then proceed to extract the correct layer from
+		// it.
 		layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
 		if len(layerMatches) == 3 {
 			digest := layerMatches[2]
