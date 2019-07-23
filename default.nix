@@ -38,6 +38,31 @@ rec {
   # for the demo instance running at nixery.appspot.com and provides
   # some background information for what Nixery is.
   nixery-static = runCommand "nixery-static" {} ''
-    cp -r ${./static} $out
+    mkdir $out
+    cp ${./static}/* $out
   '';
+
+  # Wrapper script running the Nixery server with the above two data
+  # dependencies configured.
+  #
+  # In most cases, this will be the derivation a user wants if they
+  # are installing Nixery directly.
+  nixery-bin = writeShellScriptBin "nixery" ''
+    export NIX_BUILDER="${nixery-builder}"
+    export WEB_DIR="${nixery-static}"
+    exec ${nixery-server}/bin/nixery
+  '';
+
+  # Container image containing Nixery and Nix itself. This image can
+  # be run on Kubernetes, published on AppEngine or whatever else is
+  # desired.
+  nixery-image = dockerTools.buildLayeredImage {
+    name = "nixery";
+    contents = [
+      bashInteractive
+      coreutils
+      nix
+      nixery-bin
+    ];
+  };
 }
