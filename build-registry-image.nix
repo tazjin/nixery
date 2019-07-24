@@ -34,9 +34,15 @@
   # plenty of room for extension. I believe the actual maximum is
   # 128.
   maxLayers ? 24,
-  # Nix package set to use
-  pkgs ? (import <nixpkgs> {})
+  # Nix channel to use
+  channel ? "nixos-19.03"
 }:
+
+# Import the specified channel directly from Github.
+let
+  channelUrl = "https://github.com/NixOS/nixpkgs-channels/archive/${channel}.tar.gz";
+  pkgs = import (builtins.fetchTarball channelUrl) {};
+in
 
 # Since this is essentially a re-wrapping of some of the functionality that is
 # implemented in the dockerTools, we need all of its components in our top-level

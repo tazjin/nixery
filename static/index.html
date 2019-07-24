@@ -75,10 +75,15 @@
       <li>
         <strong>Which revision of <code>nixpkgs</code> is used?</strong>
         <br>
-        Currently whatever was <code>HEAD</code> at the time I deployed this. One idea I've had is
-        to let users specify tags on images that correspond to commits in nixpkgs, however there is
-        some potential for abuse there (e.g. by triggering lots of builds on commits that have
-        broken Hydra builds) and I don't want to deal with that yet.
+        Nixery imports a Nix channel
+        via <code>builtins.fetchTarball</code>. Currently the channel
+        to which this instance is pinned is NixOS 19.03.
+        <br>
+        One idea I've had is to let users specify tags on images that
+        correspond to commits in nixpkgs, however there is some
+        potential for abuse there (e.g. by triggering lots of builds
+        on commits that have broken Hydra builds) and I don't want to
+        deal with that yet.
       </li>
       <li>
         <strong>Who made this?</strong>
