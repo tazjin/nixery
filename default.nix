@@ -36,7 +36,7 @@ rec {
     meta = {
       description = "Container image build serving Nix-backed images";
       homepage    = "https://github.com/google/nixery";
-      license     = lib.licenses.ascl20;
+      license     = lib.licenses.asl20;
       maintainers = [ lib.maintainers.tazjin ];
     };
   };
@@ -69,13 +69,37 @@ rec {
   # Container image containing Nixery and Nix itself. This image can
   # be run on Kubernetes, published on AppEngine or whatever else is
   # desired.
-  nixery-image = dockerTools.buildLayeredImage {
+  nixery-image = let
+    # Wrapper script for the wrapper script (meta!) which configures
+    # the container environment appropriately.
+    #
+    # Most importantly, sandboxing is disabled to avoid privilege
+    # issues in containers.
+    nixery-launch-script = writeShellScriptBin "nixery" ''
+      set -e
+      export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+      mkdir /tmp
+
+      # Create the build user/group required by Nix
+      echo 'nixbld:x:30000:nixbld' >> /etc/group
+      echo 'nixbld:x:30000:30000:nixbld:/tmp:/bin/bash' >> /etc/passwd
+
+      # Disable sandboxing to avoid running into privilege issues
+      mkdir -p /etc/nix
+      echo 'sandbox = false' >> /etc/nix/nix.conf
+
+      exec ${nixery-bin}/bin/nixery
+    '';
+  in dockerTools.buildLayeredImage {
     name = "nixery";
     contents = [
       bashInteractive
+      cacert
       coreutils
       nix
-      nixery-bin
+      nixery-launch-script
+      gnutar
+      gzip
     ];
   };
 }
