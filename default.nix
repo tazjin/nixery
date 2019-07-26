@@ -92,6 +92,7 @@ rec {
     '';
   in dockerTools.buildLayeredImage {
     name = "nixery";
+    config.Cmd = ["${nixery-launch-script}/bin/nixery"];
     contents = [
       bashInteractive
       cacert
