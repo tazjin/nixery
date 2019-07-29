@@ -44,26 +44,6 @@ bash-4.4# curl --version
 curl 7.64.0 (x86_64-pc-linux-gnu) libcurl/7.64.0 OpenSSL/1.0.2q zlib/1.2.11 libssh2/1.8.0 nghttp2/1.35.1
 ```
 
-## Known issues
-
-*   Initial build times for an image can be somewhat slow while Nixery retrieves
-    the required derivations from the Nix cache under-the-hood.
-
-    Due to how the Docker Registry API works, there is no way to provide
-    feedback to the user during this period - hence the UX (in interactive mode)
-    is currently that "nothing is happening" for a while after the `Unable to
-    find image` message is printed.
-
-*   For some reason these images do not currently work in GKE clusters.
-    Launching a Kubernetes pod that uses a Nixery image results in an error
-    stating `unable to convert a nil pointer to a runtime API image:
-    ImageInspectError`.
-
-    This error comes from
-    [here](https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/dockershim/convert.go#L35)
-    and it occurs *after* the Kubernetes node has retrieved the image from
-    Nixery (as per the Nixery logs).
-
 ## Kubernetes integration (in the future)
 
 **Note**: The Kubernetes integration is not yet implemented.
