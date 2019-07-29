@@ -44,35 +44,25 @@ bash-4.4# curl --version
 curl 7.64.0 (x86_64-pc-linux-gnu) libcurl/7.64.0 OpenSSL/1.0.2q zlib/1.2.11 libssh2/1.8.0 nghttp2/1.35.1
 ```
 
-## Kubernetes integration (in the future)
+## Roadmap
 
-**Note**: The Kubernetes integration is not yet implemented.
+### Custom Nix repository support
 
-The basic idea of the Kubernetes integration is to provide a way for users to
-specify the contents of a container image as an API object in Kubernetes which
-will be transparently built by Nix when the container is started up.
+One part of the Nixery vision is support for a custom Nix repository that
+provides, for example, the internal packages of an organisation.
 
-For example, given a resource that looks like this:
+It should be possible to configure Nixery to build images from such a repository
+and serve them in order to make container images themselves close to invisible
+to the user.
 
-```yaml
----
-apiVersion: k8s.nixos.org/v1alpha
-kind: NixImage
-metadata:
-  name: curl-and-jq
-data:
-  tag: v1
-  contents:
-    - curl
-    - jq
-    - bash
-```
+See [issue #3](https://github.com/google/nixery/issues/3).
 
-One could create a container that references the `curl-and-jq` image, which will
-then be created by Nix when the container image is pulled.
+### Kubernetes integration (in the future)
 
-The controller itself runs as a daemonset on every node in the cluster,
-providing a host-mounted `/nix/store`-folder for caching purposes.
+It should be trivial to deploy Nixery inside of a Kubernetes cluster with
+correct caching behaviour, addressing and so on.
+
+See [issue #4](https://github.com/google/nixery/issues/4).
 
 [Nix]: https://nixos.org/
 [gist]: https://gist.github.com/tazjin/08f3d37073b3590aacac424303e6f745
