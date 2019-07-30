@@ -14,6 +14,10 @@
         padding: 010px
       }
 
+      .logo {
+          max-width: 650px;
+      }
+
       h1, h2, h3 {
         line-height: 1.2
       }
@@ -21,56 +25,55 @@
   </head>
   <body>
     <header>
-      <h1>Nixery</h1>
+      <div align="center">
+        <img class="logo" src="nixery-logo.png">
+      </div>
       <aside>ad-hoc container images - powered by <a href="https://nixos.org/nix/">Nix</a></aside>
+      <hr>
     </header>
-    <h3>What is this?</h3>
+
     <p>
-      Nixery provides the ability to pull ad-hoc container images from a Docker-compatible registry
-      server. The image names specify the contents the image should contain, which are then
-      retrieved and built by the Nix package manager.
+      This is an instance
+      of <a href="https://github.com/google/nixery">Nixery</a>, which
+      provides the ability to pull ad-hoc container images from a
+      Docker-compatible registry server. The image names specify the
+      contents the image should contain, which are then retrieved and
+      built by the Nix package manager.
     </p>
     <p>
-      Nix is also responsible for the creation of the container images themselves. To do this it
-      uses an interesting layering strategy described in
+      Nix is also responsible for the creation of the container images
+      themselves. To do this it uses an interesting layering strategy
+      described in
       <a href="https://grahamc.com/blog/nix-and-layered-docker-images">this blog post</a>.
     </p>
     <h3>How does it work?</h3>
     <p>
-      Simply point your local Docker installation (or other compatible registry client) at Nixery
-      and ask for an image with the contents you desire. Image contents are path separated in the
-      name, so for example if you needed an image that contains a shell and <code>emacs</code> you
-      could pull it as such:
+      Simply point your local Docker installation (or other compatible
+      registry client) at Nixery and ask for an image with the
+      contents you desire. Image contents are path separated in the
+      name, so for example if you needed an image that contains a
+      shell and <code>emacs</code> you could pull it as such:
     </p>
     <p>
       <code>nixery.appspot.com/shell/emacs25-nox</code>
     </p>
     <p>
-      Image tags are currently <i>ignored</i>. Every package name needs to correspond to a key in the
+      Image tags are currently ignored. Every package name needs to
+      correspond to a key in the
       <a href="https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/all-packages.nix">nixpkgs package set</a>.
     </p>
     <p>
-      There are some special <i>meta-packages</i> which you <strong>must</strong> specify as the
-      first package in an image. These are:
-    </p>
-    <ul>
-      <li><code>shell</code>: Provides default packages you would expect in an interactive environment</li>
-      <li><code>builder</code>: Provides the above as well as Nix's standard build environment</li>
-    </ul>
-    <p>
-      Hence if you needed an interactive image with, for example, <code>htop</code> installed you
-      could run <code>docker run -ti nixery.appspot.com/shell/htop bash</code>.
+      The special meta-package <i>shell </i> provides default packages
+      you would expect in an interactive environment (such as an
+      interactively configured bash). If you use this package
+      you <b>must</b> specify it as the first package in an image.
     </p>
     <h3>FAQ</h3>
-    <p>
-      Technically speaking none of these are frequently-asked questions (because no questions have
-      been asked so far), but I'm going to take a guess at a few anyways:
-    </p>
     <ul>
       <li>
         <strong>Where is the source code for this?</strong>
         <br>
-        Not yet public, sorry. Check back later(tm).
+        Over <a href="https://github.com/google/nixery">on Github</a>.
       </li>
       <li>
         <strong>Which revision of <code>nixpkgs</code> is used?</strong>
@@ -78,17 +81,17 @@
         Nixery imports a Nix channel
         via <code>builtins.fetchTarball</code>. Currently the channel
         to which this instance is pinned is NixOS 19.03.
+      </li>
+      <li>
+        <strong>Is this an official Google project?</strong>
         <br>
-        One idea I've had is to let users specify tags on images that
-        correspond to commits in nixpkgs, however there is some
-        potential for abuse there (e.g. by triggering lots of builds
-        on commits that have broken Hydra builds) and I don't want to
-        deal with that yet.
+        <strong>No.</strong> Nixery is not officially supported by
+        Google.
       </li>
       <li>
         <strong>Who made this?</strong>
         <br>
-        <a href="https://twitter.com/tazjin">@tazjin</a>
+        <a href="https://github.com/tazjin">tazjin</a>
       </li>
     </ul>
   </body>
