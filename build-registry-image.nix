@@ -133,6 +133,8 @@ let
     os = "linux";
     rootfs.type = "layers";
     rootfs.diff_ids = map (layer: "sha256:${layer.sha256}") allLayers;
+    # Required to let Kubernetes import Nixery images
+    config = {};
   };
   configJson = writeText "${baseName}-config.json" (builtins.toJSON config);
   configMetadata = with builtins; fromJSON (readFile (runCommand "config-meta" {
