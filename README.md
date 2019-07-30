@@ -1,7 +1,13 @@
-# Nixery
+<div align="center">
+  <img src="static/nixery-logo.png">
+</div>
 
-This package implements a Docker-compatible container registry that is capable
-of transparently building and serving container images using [Nix][].
+-----------------
+
+[![Build Status](https://travis-ci.org/google/nixery.svg?branch=master)](https://travis-ci.org/google/nixery)
+
+**Nixery** is a Docker-compatible container registry that is capable of
+transparently building and serving container images using [Nix][].
 
 The project started out with the intention of becoming a Kubernetes controller
 that can serve declarative image specifications specified in CRDs as container
