@@ -94,13 +94,13 @@ rec {
     name = "nixery";
     config.Cmd = ["${nixery-launch-script}/bin/nixery"];
     contents = [
-      bashInteractive
       cacert
-      coreutils
-      nix
-      nixery-launch-script
+      git
       gnutar
       gzip
+      nix
+      nixery-launch-script
+      openssh
     ];
   };
 }
