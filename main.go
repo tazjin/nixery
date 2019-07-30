@@ -266,8 +266,13 @@ func prepareBucket(ctx *context.Context, cfg *config) *storage.BucketHandle {
 	return bkt
 }
 
-var manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/(\w+)$`)
-var layerRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
+// Regexes matching the V2 Registry API routes. This only includes the
+// routes required for serving images, since pushing and other such
+// functionality is not available.
+var (
+	manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/(\w+)$`)
+	layerRegex    = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
+)
 
 func getConfig(key, desc string) string {
 	value := os.Getenv(key)
@@ -278,12 +283,51 @@ func getConfig(key, desc string) string {
 	return value
 }
 
+type registryHandler struct {
+	cfg    *config
+	ctx    *context.Context
+	bucket *storage.BucketHandle
+}
+
+func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Serve the manifest (straight from Nix)
+	manifestMatches := manifestRegex.FindStringSubmatch(r.RequestURI)
+	if len(manifestMatches) == 3 {
+		imageName := manifestMatches[1]
+		log.Printf("Requesting manifest for image '%s'", imageName)
+		image := imageFromName(manifestMatches[1])
+		manifest, err := buildImage(h.ctx, h.cfg, &image, h.bucket)
+
+		if err != nil {
+			log.Println("Failed to build image manifest", err)
+			return
+		}
+
+		w.Header().Add("Content-Type", manifestMediaType)
+		w.Write(manifest)
+		return
+	}
+
+	// Serve an image layer. For this we need to first ask Nix for
+	// the manifest, then proceed to extract the correct layer from
+	// it.
+	layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
+	if len(layerMatches) == 3 {
+		digest := layerMatches[2]
+		layerRedirect(w, h.cfg, digest)
+		return
+	}
+
+	log.Printf("Unsupported registry route: %s\n", r.RequestURI)
+	w.WriteHeader(404)
+}
+
 func main() {
 	cfg := &config{
-		bucket: getConfig("BUCKET", "GCS bucket for layer storage"),
+		bucket:  getConfig("BUCKET", "GCS bucket for layer storage"),
 		builder: getConfig("NIX_BUILDER", "Nix image builder code"),
-		web: getConfig("WEB_DIR", "Static web file dir"),
-		port: getConfig("PORT", "HTTP port"),
+		web:     getConfig("WEB_DIR", "Static web file dir"),
+		port:    getConfig("PORT", "HTTP port"),
 	}
 
 	ctx := context.Background()
@@ -291,59 +335,20 @@ func main() {
 
 	log.Printf("Starting Kubernetes Nix controller on port %s\n", cfg.port)
 
-	log.Fatal(http.ListenAndServe(":"+cfg.port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// When running on AppEngine, HTTP traffic should be redirected
-		// to HTTPS.
-		//
-		// This is achieved here by enforcing HSTS (with a one week
-		// duration) on responses.
-		if r.Header.Get("X-Forwarded-Proto") == "http" && strings.Contains(r.Host, "appspot.com") {
-			w.Header().Add("Strict-Transport-Security", "max-age=604800")
-		}
+	// Acknowledge that we speak V2
+	http.HandleFunc("/v2", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w)
+	})
 
-		// Serve an index page to anyone who visits the registry's base
-		// URL:
-		if r.RequestURI == "/" {
-			index, _ := ioutil.ReadFile(cfg.web + "/index.html")
-			w.Header().Add("Content-Type", "text/html")
-			w.Write(index)
-			return
-		}
+	// All other /v2/ requests belong to the registry handler.
+	http.Handle("/v2/", &registryHandler{
+		cfg:    cfg,
+		ctx:    &ctx,
+		bucket: bucket,
+	})
 
-		// Acknowledge that we speak V2
-		if r.RequestURI == "/v2/" {
-			fmt.Fprintln(w)
-			return
-		}
+	// All other roots are served by the static file server.
+	http.Handle("/", http.FileServer(http.Dir(cfg.web)))
 
-		// Serve the manifest (straight from Nix)
-		manifestMatches := manifestRegex.FindStringSubmatch(r.RequestURI)
-		if len(manifestMatches) == 3 {
-			imageName := manifestMatches[1]
-			log.Printf("Requesting manifest for image '%s'", imageName)
-			image := imageFromName(manifestMatches[1])
-			manifest, err := buildImage(&ctx, cfg, &image, bucket)
-
-			if err != nil {
-				log.Println("Failed to build image manifest", err)
-				return
-			}
-
-			w.Header().Add("Content-Type", manifestMediaType)
-			w.Write(manifest)
-			return
-		}
-
-		// Serve an image layer. For this we need to first ask Nix for
-		// the manifest, then proceed to extract the correct layer from
-		// it.
-		layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
-		if len(layerMatches) == 3 {
-			digest := layerMatches[2]
-			layerRedirect(w, cfg, digest)
-			return
-		}
-
-		w.WriteHeader(404)
-	})))
+	log.Fatal(http.ListenAndServe(":"+cfg.port, nil))
 }
