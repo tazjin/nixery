@@ -99,6 +99,7 @@ in
 # Since this is essentially a re-wrapping of some of the functionality that is
 # implemented in the dockerTools, we need all of its components in our top-level
 # namespace.
+with builtins;
 with pkgs;
 with dockerTools;
 
@@ -115,16 +116,29 @@ let
   # For example, `deepFetch pkgs "xorg.xev"` retrieves `pkgs.xorg.xev`.
   deepFetch = s: n:
     let path = lib.strings.splitString "." n;
-        err = builtins.throw "Could not find '${n}' in package set";
+        err = { error = "not_found"; pkg = n; };
     in lib.attrsets.attrByPath path err s;
 
   # allContents is the combination of all derivations and store paths passed in
   # directly, as well as packages referred to by name.
-  allContents = contents ++ (map (deepFetch pkgs) (builtins.fromJSON packages));
+  #
+  # It accumulates potential errors about packages that could not be found to
+  # return this information back to the server.
+  allContents =
+    # Folds over the results of 'deepFetch' on all requested packages to
+    # separate them into errors and content. This allows the program to
+    # terminate early and return only the errors if any are encountered.
+    let splitter = attrs: res:
+          if hasAttr "error" res
+          then attrs // { errors = attrs.errors ++ [ res ]; }
+          else attrs // { contents = attrs.contents ++ [ res ]; };
+        init = { inherit contents; errors = []; };
+        fetched = (map (deepFetch pkgs) (fromJSON packages));
+    in foldl' splitter init fetched;
 
   contentsEnv = symlinkJoin {
     name = "bulk-layers";
-    paths = allContents;
+    paths = allContents.contents;
   };
 
   # The image build infrastructure expects to be outputting a slightly different
@@ -176,7 +190,7 @@ let
 
       cat fs-layers | jq -s -c '.' > $out
   '';
-  allLayers = builtins.fromJSON (builtins.readFile allLayersJson);
+  allLayers = fromJSON (readFile allLayersJson);
 
   # Image configuration corresponding to the OCI specification for the file type
   # 'application/vnd.oci.image.config.v1+json'
@@ -188,8 +202,8 @@ let
     # Required to let Kubernetes import Nixery images
     config = {};
   };
-  configJson = writeText "${baseName}-config.json" (builtins.toJSON config);
-  configMetadata = with builtins; fromJSON (readFile (runCommand "config-meta" {
+  configJson = writeText "${baseName}-config.json" (toJSON config);
+  configMetadata = fromJSON (readFile (runCommand "config-meta" {
     buildInputs = [ jq openssl ];
   } ''
     size=$(wc -c ${configJson} | cut -d ' ' -f1)
@@ -228,7 +242,7 @@ let
         path = configJson;
         md5 = configMetadata.md5;
       };
-    } // (builtins.listToAttrs (map (layer: {
+    } // (listToAttrs (map (layer: {
       name  = "${layer.sha256}";
       value = {
         path = layer.path;
@@ -236,6 +250,19 @@ let
       };
     }) allLayers));
 
-in writeText "manifest-output.json" (builtins.toJSON {
-  inherit manifest layerLocations;
-})
+  # Final output structure returned to the controller in the case of a
+  # successful build.
+  manifestOutput = {
+    inherit manifest layerLocations;
+  };
+
+  # Output structure returned if errors occured during the build. Currently the
+  # only error type that is returned in a structured way is 'not_found'.
+  errorOutput = {
+    error = "not_found";
+    pkgs = map (err: err.pkg) allContents.errors;
+  };
+in writeText "manifest-output.json" (if (length allContents.errors) == 0
+  then toJSON (trace manifestOutput manifestOutput)
+  else toJSON (trace errorOutput errorOutput)
+)
