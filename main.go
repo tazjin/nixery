@@ -138,6 +138,9 @@ type image struct {
 //
 // The later field is simply treated as opaque JSON and passed through.
 type BuildResult struct {
+	Error string   `json:"error`
+	Pkgs  []string `json:"pkgs"`
+
 	Manifest       json.RawMessage `json:"manifest"`
 	LayerLocations map[string]struct {
 		Path string `json:"path"`
@@ -183,7 +186,7 @@ func convenienceNames(packages []string) []string {
 
 // Call out to Nix and request that an image be built. Nix will, upon success,
 // return a manifest for the container image.
-func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage.BucketHandle) ([]byte, error) {
+func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage.BucketHandle) (*BuildResult, error) {
 	packages, err := json.Marshal(image.packages)
 	if err != nil {
 		return nil, err
@@ -249,7 +252,7 @@ func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage
 		}
 	}
 
-	return json.Marshal(result.Manifest)
+	return &result, nil
 }
 
 // uploadLayer uploads a single layer to Cloud Storage bucket. Before writing
@@ -358,7 +361,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		imageTag := manifestMatches[2]
 		log.Printf("Requesting manifest for image %q at tag %q", imageName, imageTag)
 		image := imageFromName(imageName, imageTag)
-		manifest, err := buildImage(h.ctx, h.cfg, &image, h.bucket)
+		buildResult, err := buildImage(h.ctx, h.cfg, &image, h.bucket)
 
 		if err != nil {
 			log.Println("Failed to build image manifest", err)
@@ -366,6 +369,17 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Some error types have special handling, which is applied
+		// here.
+		if buildResult.Error == "not_found" {
+			log.Printf("Could not find packages: %v\n", buildResult.Pkgs)
+			w.WriteHeader(404)
+			return
+		}
+
+		// This marshaling error is ignored because we know that this
+		// field represents valid JSON data.
+		manifest, _ := json.Marshal(buildResult.Manifest)
 		w.Header().Add("Content-Type", manifestMediaType)
 		w.Write(manifest)
 		return
