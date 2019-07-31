@@ -9,28 +9,20 @@
 **Nixery** is a Docker-compatible container registry that is capable of
 transparently building and serving container images using [Nix][].
 
-The project started out with the intention of becoming a Kubernetes controller
-that can serve declarative image specifications specified in CRDs as container
-images. The design for this is outlined in [a public gist][gist].
-
-Currently it focuses on the ad-hoc creation of container images as outlined
-below with an example instance available at
-[nixery.appspot.com](https://nixery.appspot.com).
-
-This is not an officially supported Google project.
-
-## Ad-hoc container images
-
-Nixery supports building images on-demand based on the *image name*. Every
-package that the user intends to include in the image is specified as a path
-component of the image name.
+Images are built on-demand based on the *image name*. Every package that the
+user intends to include in the image is specified as a path component of the
+image name.
 
 The path components refer to top-level keys in `nixpkgs` and are used to build a
 container image using Nix's [buildLayeredImage][] functionality.
 
-The special meta-package `shell` provides an image base with many core
-components (such as `bash` and `coreutils`) that users commonly expect in
-interactive images.
+The project started out with the intention of becoming a Kubernetes controller
+that can serve declarative image specifications specified in CRDs as container
+images. The design for this is outlined in [a public gist][gist].
+
+An example instance is available at [nixery.appspot.com][demo].
+
+This is not an officially supported Google project.
 
 ## Usage example
 
@@ -50,18 +42,53 @@ bash-4.4# curl --version
 curl 7.64.0 (x86_64-pc-linux-gnu) libcurl/7.64.0 OpenSSL/1.0.2q zlib/1.2.11 libssh2/1.8.0 nghttp2/1.35.1
 ```
 
+The special meta-package `shell` provides an image base with many core
+components (such as `bash` and `coreutils`) that users commonly expect in
+interactive images.
+
+## Feature overview
+
+* Serve container images on-demand using image names as content specifications
+
+  Specify package names as path components and Nixery will create images, using
+  the most efficient caching strategy it can to share data between different
+  images.
+
+* Use private package sets from various sources
+
+  In addition to building images from the publicly available Nix/NixOS channels,
+  a private Nixery instance can be configured to serve images built from a
+  package set hosted in a custom git repository or filesystem path.
+
+  When using this feature with custom git repositories, Nixery will forward the
+  specified image tags as git references.
+
+  For example, if a company used a custom repository overlaying their packages
+  on the Nix package set, images could be built from a git tag `release-v2`:
+
+  `docker pull nixery.thecompany.website/custom-service:release-v2`
+
+* Efficient serving of image layers from Google Cloud Storage
+
+  After building an image, Nixery stores all of its layers in a GCS bucket and
+  forwards requests to retrieve layers to the bucket. This enables efficient
+  serving of layers, as well as sharing of image layers between redundant
+  instances.
+
+## Configuration
+
+Nixery supports the following configuration options, provided via environment
+variables:
+
+* `BUCKET`: [Google Cloud Storage][gcs] bucket to store & serve image layers
+* `PORT`: HTTP port on which Nixery should listen
+* `NIXERY_CHANNEL`: The name of a Nix/NixOS channel to use for building
+* `NIXERY_PKGS_REPO`: URL of a git repository containing a package set (uses
+  locally configured SSH/git credentials)
+* `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to use
+  for building
+
 ## Roadmap
-
-### Custom Nix repository support
-
-One part of the Nixery vision is support for a custom Nix repository that
-provides, for example, the internal packages of an organisation.
-
-It should be possible to configure Nixery to build images from such a repository
-and serve them in order to make container images themselves close to invisible
-to the user.
-
-See [issue #3](https://github.com/google/nixery/issues/3).
 
 ### Kubernetes integration (in the future)
 
@@ -73,3 +100,5 @@ See [issue #4](https://github.com/google/nixery/issues/4).
 [Nix]: https://nixos.org/
 [gist]: https://gist.github.com/tazjin/08f3d37073b3590aacac424303e6f745
 [buildLayeredImage]: https://grahamc.com/blog/nix-and-layered-docker-images
+[demo]: https://nixery.appspot.com
+[gcs]: https://cloud.google.com/storage/
