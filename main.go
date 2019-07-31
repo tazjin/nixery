@@ -362,6 +362,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			log.Println("Failed to build image manifest", err)
+			w.WriteHeader(500)
 			return
 		}
 
