@@ -46,12 +46,65 @@ import (
 	"cloud.google.com/go/storage"
 )
 
+// pkgSource represents the source from which the Nix package set used
+// by Nixery is imported. Users configure the source by setting one of
+// the supported environment variables.
+type pkgSource struct {
+	srcType string
+	args    string
+}
+
+// Convert the package source into the representation required by Nix.
+func (p *pkgSource) renderSource(tag string) string {
+	// The 'git' source requires a tag to be present.
+	if p.srcType == "git" {
+		if tag == "latest" || tag == "" {
+			tag = "master"
+		}
+
+		return fmt.Sprintf("git!%s!%s", p.args, tag)
+	}
+
+	return fmt.Sprintf("%s!%s", p.srcType, p.args)
+}
+
+// Retrieve a package source from the environment. If no source is
+// specified, the Nix code will default to a recent NixOS channel.
+func pkgSourceFromEnv() *pkgSource {
+	if channel := os.Getenv("NIXERY_CHANNEL"); channel != "" {
+		log.Printf("Using Nix package set from Nix channel %q\n", channel)
+		return &pkgSource{
+			srcType: "nixpkgs",
+			args:    channel,
+		}
+	}
+
+	if git := os.Getenv("NIXERY_PKGS_REPO"); git != "" {
+		log.Printf("Using Nix package set from git repository at %q\n", git)
+		return &pkgSource{
+			srcType: "git",
+			args:    git,
+		}
+	}
+
+	if path := os.Getenv("NIXERY_PKGS_PATH"); path != "" {
+		log.Printf("Using Nix package set from path %q\n", path)
+		return &pkgSource{
+			srcType: "path",
+			args:    path,
+		}
+	}
+
+	return nil
+}
+
 // config holds the Nixery configuration options.
 type config struct {
-	bucket  string // GCS bucket to cache & serve layers
-	builder string // Nix derivation for building images
-	web     string // Static files to serve over HTTP
-	port    string // Port on which to launch HTTP server
+	bucket  string     // GCS bucket to cache & serve layers
+	builder string     // Nix derivation for building images
+	web     string     // Static files to serve over HTTP
+	port    string     // Port on which to launch HTTP server
+	pkgs    *pkgSource // Source for Nix package set
 }
 
 // ManifestMediaType is the Content-Type used for the manifest itself. This
@@ -66,6 +119,9 @@ const manifestMediaType string = "application/vnd.docker.distribution.manifest.v
 type image struct {
 	// Name of the container image.
 	name string
+
+	// Tag requested (only relevant for package sets from git repositories)
+	tag string
 
 	// Names of packages to include in the image. These must correspond
 	// directly to top-level names of Nix packages in the nixpkgs tree.
@@ -94,10 +150,11 @@ type BuildResult struct {
 //
 // It will expand convenience names under the hood (see the `convenienceNames`
 // function below).
-func imageFromName(name string) image {
+func imageFromName(name string, tag string) image {
 	packages := strings.Split(name, "/")
 	return image{
 		name:     name,
+		tag:      tag,
 		packages: convenienceNames(packages),
 	}
 }
@@ -132,13 +189,17 @@ func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage
 		return nil, err
 	}
 
-	cmd := exec.Command(
-		"nix-build",
+	args := []string{
 		"--no-out-link",
 		"--show-trace",
 		"--argstr", "name", image.name,
 		"--argstr", "packages", string(packages), cfg.builder,
-	)
+	}
+
+	if cfg.pkgs != nil {
+		args = append(args, "--argstr", "pkgSource", cfg.pkgs.renderSource(image.tag))
+	}
+	cmd := exec.Command("nix-build", args...)
 
 	outpipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -270,7 +331,7 @@ func prepareBucket(ctx *context.Context, cfg *config) *storage.BucketHandle {
 // routes required for serving images, since pushing and other such
 // functionality is not available.
 var (
-	manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/(\w+)$`)
+	manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/([\w|\-|\.|\_]+)$`)
 	layerRegex    = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
 )
 
@@ -294,8 +355,9 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	manifestMatches := manifestRegex.FindStringSubmatch(r.RequestURI)
 	if len(manifestMatches) == 3 {
 		imageName := manifestMatches[1]
-		log.Printf("Requesting manifest for image '%s'", imageName)
-		image := imageFromName(manifestMatches[1])
+		imageTag := manifestMatches[2]
+		log.Printf("Requesting manifest for image %q at tag %q", imageName, imageTag)
+		image := imageFromName(imageName, imageTag)
 		manifest, err := buildImage(h.ctx, h.cfg, &image, h.bucket)
 
 		if err != nil {
@@ -328,6 +390,7 @@ func main() {
 		builder: getConfig("NIX_BUILDER", "Nix image builder code"),
 		web:     getConfig("WEB_DIR", "Static web file dir"),
 		port:    getConfig("PORT", "HTTP port"),
+		pkgs:    pkgSourceFromEnv(),
 	}
 
 	ctx := context.Background()
