@@ -138,7 +138,7 @@ type image struct {
 //
 // The later field is simply treated as opaque JSON and passed through.
 type BuildResult struct {
-	Error string   `json:"error`
+	Error string   `json:"error"`
 	Pkgs  []string `json:"pkgs"`
 
 	Manifest       json.RawMessage `json:"manifest"`
@@ -338,13 +338,29 @@ var (
 	layerRegex    = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
 )
 
-func getConfig(key, desc string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		log.Fatalln(desc + " must be specified")
-	}
+// Error format corresponding to the registry protocol V2 specification. This
+// allows feeding back errors to clients in a way that can be presented to
+// users.
+type registryError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
 
-	return value
+type registryErrors struct {
+	Errors []registryError `json:"errors"`
+}
+
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	err := registryErrors{
+		Errors: []registryError{
+			{code, message},
+		},
+	}
+	json, _ := json.Marshal(err)
+
+	w.WriteHeader(status)
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(json)
 }
 
 type registryHandler struct {
@@ -364,16 +380,17 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		buildResult, err := buildImage(h.ctx, h.cfg, &image, h.bucket)
 
 		if err != nil {
+			writeError(w, 500, "UNKNOWN", "image build failure")
 			log.Println("Failed to build image manifest", err)
-			w.WriteHeader(500)
 			return
 		}
 
 		// Some error types have special handling, which is applied
 		// here.
 		if buildResult.Error == "not_found" {
-			log.Printf("Could not find packages: %v\n", buildResult.Pkgs)
-			w.WriteHeader(404)
+			s := fmt.Sprintf("Could not find Nix packages: %v", buildResult.Pkgs)
+			writeError(w, 404, "MANIFEST_UNKNOWN", s)
+			log.Println(s)
 			return
 		}
 
@@ -397,6 +414,15 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Unsupported registry route: %s\n", r.RequestURI)
 	w.WriteHeader(404)
+}
+
+func getConfig(key, desc string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalln(desc + " must be specified")
+	}
+
+	return value
 }
 
 func main() {
