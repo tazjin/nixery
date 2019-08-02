@@ -48,8 +48,8 @@ rec {
   '';
 
   # Static files to serve on the Nixery index. This is used primarily
-  # for the demo instance running at nixery.appspot.com and provides
-  # some background information for what Nixery is.
+  # for the demo instance running at nixery.dev and provides some
+  # background information for what Nixery is.
   nixery-static = runCommand "nixery-static" {} ''
     mkdir $out
     cp ${./static}/* $out
