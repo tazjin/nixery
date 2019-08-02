@@ -95,6 +95,7 @@ rec {
     config.Cmd = ["${nixery-launch-script}/bin/nixery"];
     contents = [
       cacert
+      coreutils
       git
       gnutar
       gzip
