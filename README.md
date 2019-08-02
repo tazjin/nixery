@@ -20,24 +20,24 @@ The project started out with the intention of becoming a Kubernetes controller
 that can serve declarative image specifications specified in CRDs as container
 images. The design for this is outlined in [a public gist][gist].
 
-An example instance is available at [nixery.appspot.com][demo].
+An example instance is available at [nixery.dev][demo].
 
 This is not an officially supported Google project.
 
 ## Usage example
 
-Using the publicly available Nixery instance at `nixery.appspot.com`, one could
+Using the publicly available Nixery instance at `nixery.dev`, one could
 retrieve a container image containing `curl` and an interactive shell like this:
 
 ```shell
-tazjin@tazbox:~$ sudo docker run -ti nixery.appspot.com/shell/curl bash
-Unable to find image 'nixery.appspot.com/shell/curl:latest' locally
+tazjin@tazbox:~$ sudo docker run -ti nixery.dev/shell/curl bash
+Unable to find image 'nixery.dev/shell/curl:latest' locally
 latest: Pulling from shell/curl
 7734b79e1ba1: Already exists
 b0d2008d18cd: Pull complete
 < ... some layers omitted ...>
 Digest: sha256:178270bfe84f74548b6a43347d73524e5c2636875b673675db1547ec427cf302
-Status: Downloaded newer image for nixery.appspot.com/shell/curl:latest
+Status: Downloaded newer image for nixery.dev/shell/curl:latest
 bash-4.4# curl --version
 curl 7.64.0 (x86_64-pc-linux-gnu) libcurl/7.64.0 OpenSSL/1.0.2q zlib/1.2.11 libssh2/1.8.0 nghttp2/1.35.1
 ```
@@ -100,5 +100,5 @@ See [issue #4](https://github.com/google/nixery/issues/4).
 [Nix]: https://nixos.org/
 [gist]: https://gist.github.com/tazjin/08f3d37073b3590aacac424303e6f745
 [buildLayeredImage]: https://grahamc.com/blog/nix-and-layered-docker-images
-[demo]: https://nixery.appspot.com
+[demo]: https://nixery.dev
 [gcs]: https://cloud.google.com/storage/
