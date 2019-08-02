@@ -208,7 +208,7 @@ let
   } ''
     size=$(wc -c ${configJson} | cut -d ' ' -f1)
     sha256=$(sha256sum ${configJson} | cut -d ' ' -f1)
-    md5=$(openssl dgst -md5 -binary $layerPath | openssl enc -base64)
+    md5=$(openssl dgst -md5 -binary ${configJson} | openssl enc -base64)
     jq -n -c --arg size $size --arg sha256 $sha256 --arg md5 $md5 \
       '{ size: ($size | tonumber), sha256: $sha256, md5: $md5 }' \
       >> $out
