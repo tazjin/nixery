@@ -173,15 +173,12 @@ func imageFromName(name string, tag string) image {
 // * `builder`: All of the above and the standard build environment
 func convenienceNames(packages []string) []string {
 	shellPackages := []string{"bashInteractive", "coreutils", "moreutils", "nano"}
-	builderPackages := append(shellPackages, "stdenv")
 
 	if packages[0] == "shell" {
 		return append(packages[1:], shellPackages...)
-	} else if packages[0] == "builder" {
-		return append(packages[1:], builderPackages...)
-	} else {
-		return packages
 	}
+
+	return packages
 }
 
 // Call out to Nix and request that an image be built. Nix will, upon success,
