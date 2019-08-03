@@ -367,6 +367,11 @@ type registryHandler struct {
 }
 
 func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Acknowledge that we speak V2 with an empty response
+	if r.RequestURI == "/v2/" {
+		return
+	}
+
 	// Serve the manifest (straight from Nix)
 	manifestMatches := manifestRegex.FindStringSubmatch(r.RequestURI)
 	if len(manifestMatches) == 3 {
@@ -436,12 +441,7 @@ func main() {
 
 	log.Printf("Starting Kubernetes Nix controller on port %s\n", cfg.port)
 
-	// Acknowledge that we speak V2
-	http.HandleFunc("/v2", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w)
-	})
-
-	// All other /v2/ requests belong to the registry handler.
+	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{
 		cfg:    cfg,
 		ctx:    &ctx,
