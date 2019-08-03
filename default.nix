@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> {}
+, preLaunch ? "" }:
 
 with pkgs;
 
@@ -87,6 +88,8 @@ rec {
       # Disable sandboxing to avoid running into privilege issues
       mkdir -p /etc/nix
       echo 'sandbox = false' >> /etc/nix/nix.conf
+
+      ${preLaunch}
 
       exec ${nixery-bin}/bin/nixery
     '';
