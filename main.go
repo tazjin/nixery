@@ -23,10 +23,6 @@
 // request and a Nix-build is initiated that eventually responds with the
 // manifest as well as information linking each layer digest to a local
 // filesystem path.
-//
-// Nixery caches the filesystem paths and returns the manifest to the client.
-// Subsequent requests for layer content per digest are then fulfilled by
-// serving the files from disk.
 package main
 
 import (
@@ -42,6 +38,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/storage"
 )
@@ -98,13 +95,37 @@ func pkgSourceFromEnv() *pkgSource {
 	return nil
 }
 
+// Load (optional) GCS bucket signing data from the GCS_SIGNING_KEY and
+// GCS_SIGNING_ACCOUNT envvars.
+func signingOptsFromEnv() *storage.SignedURLOptions {
+	path := os.Getenv("GCS_SIGNING_KEY")
+	id := os.Getenv("GCS_SIGNING_ACCOUNT")
+
+	if path == "" || id == "" {
+		log.Println("GCS URL signing disabled")
+		return nil
+	}
+
+	log.Printf("GCS URL signing enabled with account %q\n", id)
+	k, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Fatalf("Failed to read GCS signing key: %s\n", err)
+	}
+
+	return &storage.SignedURLOptions{
+		GoogleAccessID: id,
+		PrivateKey:     k,
+		Method:         "GET",
+	}
+}
+
 // config holds the Nixery configuration options.
 type config struct {
-	bucket  string     // GCS bucket to cache & serve layers
-	builder string     // Nix derivation for building images
-	web     string     // Static files to serve over HTTP
-	port    string     // Port on which to launch HTTP server
-	pkgs    *pkgSource // Source for Nix package set
+	bucket  string                    // GCS bucket to cache & serve layers
+	signing *storage.SignedURLOptions // Signing options to use for GCS URLs
+	builder string                    // Nix derivation for building images
+	port    string                    // Port on which to launch HTTP server
+	pkgs    *pkgSource                // Source for Nix package set
 }
 
 // ManifestMediaType is the Content-Type used for the manifest itself. This
@@ -117,10 +138,7 @@ const manifestMediaType string = "application/vnd.docker.distribution.manifest.v
 // This can be either a list of package names (corresponding to keys in the
 // nixpkgs set) or a Nix expression that results in a *list* of derivations.
 type image struct {
-	// Name of the container image.
 	name string
-
-	// Tag requested (only relevant for package sets from git repositories)
 	tag string
 
 	// Names of packages to include in the image. These must correspond
@@ -294,15 +312,24 @@ func uploadLayer(ctx *context.Context, bucket *storage.BucketHandle, layer strin
 }
 
 // layerRedirect constructs the public URL of the layer object in the Cloud
-// Storage bucket and redirects the client there.
+// Storage bucket, signs it and redirects the user there.
+//
+// Signing the URL allows unauthenticated clients to retrieve objects from the
+// bucket.
 //
 // The Docker client is known to follow redirects, but this might not be true
 // for all other registry clients.
-func layerRedirect(w http.ResponseWriter, cfg *config, digest string) {
+func constructLayerUrl(cfg *config, digest string) (string, error) {
 	log.Printf("Redirecting layer '%s' request to bucket '%s'\n", digest, cfg.bucket)
-	url := fmt.Sprintf("https://storage.googleapis.com/%s/layers/%s", cfg.bucket, digest)
-	w.Header().Set("Location", url)
-	w.WriteHeader(303)
+	object := "layers/" + digest
+
+	if cfg.signing != nil {
+		opts := *cfg.signing
+		opts.Expires = time.Now().Add(5 * time.Minute)
+		return storage.SignedURL(cfg.bucket, object, &opts)
+	} else {
+		return ("https://storage.googleapis.com" + cfg.bucket + "/" + object), nil
+	}
 }
 
 // prepareBucket configures the handle to a Cloud Storage bucket in which
@@ -410,7 +437,16 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
 	if len(layerMatches) == 3 {
 		digest := layerMatches[2]
-		layerRedirect(w, h.cfg, digest)
+		url, err := constructLayerUrl(h.cfg, digest)
+
+		if err != nil {
+			log.Printf("Failed to sign GCS URL: %s\n", err)
+			writeError(w, 500, "UNKNOWN", "could not serve layer")
+			return
+		}
+
+		w.Header().Set("Location", url)
+		w.WriteHeader(303)
 		return
 	}
 
@@ -431,9 +467,9 @@ func main() {
 	cfg := &config{
 		bucket:  getConfig("BUCKET", "GCS bucket for layer storage"),
 		builder: getConfig("NIX_BUILDER", "Nix image builder code"),
-		web:     getConfig("WEB_DIR", "Static web file dir"),
 		port:    getConfig("PORT", "HTTP port"),
 		pkgs:    pkgSourceFromEnv(),
+		signing: signingOptsFromEnv(),
 	}
 
 	ctx := context.Background()
@@ -449,7 +485,8 @@ func main() {
 	})
 
 	// All other roots are served by the static file server.
-	http.Handle("/", http.FileServer(http.Dir(cfg.web)))
+	webDir := http.Dir(getConfig("WEB_DIR", "Static web file dir"))
+	http.Handle("/", http.FileServer(webDir))
 
 	log.Fatal(http.ListenAndServe(":"+cfg.port, nil))
 }
