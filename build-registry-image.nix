@@ -113,11 +113,36 @@ let
   # For top-level items, the name of the key yields the result directly. Nested
   # items are fetched by using dot-syntax, as in Nix itself.
   #
-  # For example, `deepFetch pkgs "xorg.xev"` retrieves `pkgs.xorg.xev`.
-  deepFetch = s: n:
-    let path = lib.strings.splitString "." n;
+  # Due to a restriction of the registry API specification it is not possible to
+  # pass uppercase characters in an image name, however the Nix package set
+  # makes use of camelCasing repeatedly (for example for `haskellPackages`).
+  #
+  # To work around this, if no value is found on the top-level a second lookup
+  # is done on the package set using lowercase-names. This is not done for
+  # nested sets, as they often have keys that only differ in case.
+  #
+  # For example, `deepFetch pkgs "xorg.xev"` retrieves `pkgs.xorg.xev` and
+  # `deepFetch haskellpackages.stylish-haskell` retrieves
+  # `haskellPackages.stylish-haskell`.
+  deepFetch = with lib; s: n:
+    let path = splitString "." n;
         err = { error = "not_found"; pkg = n; };
-    in lib.attrsets.attrByPath path err s;
+        # The most efficient way I've found to do a lookup against
+        # case-differing versions of an attribute is to first construct a
+        # mapping of all lowercased attribute names to their differently cased
+        # equivalents.
+        #
+        # This map is then used for a second lookup if the top-level
+        # (case-sensitive) one does not yield a result.
+        hasUpper = str: (match ".*[A-Z].*" str) != null;
+        allUpperKeys = filter hasUpper (attrNames s);
+        lowercased = listToAttrs (map (k: {
+          name = toLower k;
+          value = k;
+          }) allUpperKeys);
+        caseAmendedPath = map (v: if hasAttr v lowercased then lowercased."${v}" else v) path;
+        fetchLower = attrByPath caseAmendedPath err s;
+    in attrByPath path fetchLower s;
 
   # allContents is the combination of all derivations and store paths passed in
   # directly, as well as packages referred to by name.
