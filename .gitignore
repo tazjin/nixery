@@ -1,3 +1,9 @@
 result
 result-*
 .envrc
+debug/
+
+# Just to be sure, since we're occasionally handling test keys:
+*.pem
+*.p12
+*.json
