@@ -87,6 +87,10 @@ variables:
   locally configured SSH/git credentials)
 * `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to use
   for building
+* `GCS_SIGNING_KEY`: A Google service account key (in PEM format) that can be
+  used to sign Cloud Storage URLs
+* `GCS_SIGNING_ACCOUNT`: Google service account ID that the signing key belongs
+  to
 
 ## Roadmap
 
