@@ -48,13 +48,6 @@ rec {
     cat ${./build-registry-image.nix} > $out
   '';
 
-  # Static files to serve on the Nixery index. This is used primarily
-  # for the demo instance running at nixery.dev and provides some
-  # background information for what Nixery is.
-  nixery-static = runCommand "nixery-static" {} ''
-    mkdir $out
-    cp ${./static}/* $out
-  '';
   # nixpkgs currently has an old version of mdBook. A new version is
   # built here, but eventually the update will be upstreamed
   # (nixpkgs#65890)
@@ -73,6 +66,10 @@ rec {
     cargoSha256 = "0qwhc42a86jpvjcaysmfcw8kmwa150lmz01flmlg74g6qnimff5m";
   };
 
+  # Use mdBook to build a static asset page which Nixery can then
+  # serve. This is primarily used for the public instance at
+  # nixery.dev.
+  nixery-book = callPackage ./docs { inherit mdbook; };
 
   # Wrapper script running the Nixery server with the above two data
   # dependencies configured.
@@ -81,7 +78,7 @@ rec {
   # are installing Nixery directly.
   nixery-bin = writeShellScriptBin "nixery" ''
     export NIX_BUILDER="${nixery-builder}"
-    export WEB_DIR="${nixery-static}"
+    export WEB_DIR="${nixery-book}"
     exec ${nixery-server}/bin/nixery
   '';
 
@@ -107,6 +104,11 @@ rec {
       mkdir -p /etc/nix
       echo 'sandbox = false' >> /etc/nix/nix.conf
 
+      # In some cases users building their own image might want to
+      # customise something on the inside (e.g. set up an environment
+      # for keys or whatever).
+      #
+      # This can be achieved by setting a 'preLaunch' script.
       ${preLaunch}
 
       exec ${nixery-bin}/bin/nixery
