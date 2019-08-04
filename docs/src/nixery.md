@@ -52,16 +52,16 @@ The instance at `nixery.dev` tracks a recent NixOS channel, currently NixOS
 Private registries might be configured to track a different channel (such as
 `nixos-unstable`) or even track a git repository with custom packages.
 
-### Is this an official Google project?
-
-**No.** Nixery is not officially supported by Google.
-
 ### Should I depend on `nixery.dev` in production?
 
 While we appreciate the enthusiasm, if you would like to use Nixery in your
 production project we recommend setting up a private instance. The public Nixery
 at `nixery.dev` is run on a best-effort basis and we make no guarantees about
 availability.
+
+### Is this an official Google project?
+
+**No.** Nixery is not officially supported by Google.
 
 ### Who made this?
 
