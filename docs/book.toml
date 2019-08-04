@@ -1,0 +1,8 @@
+[book]
+authors = ["Vincent Ambo <tazjin@google.com>"]
+language = "en"
+multilingual = false
+src = "src"
+
+[output.html]
+additional-css = ["theme/nixery.css"]
