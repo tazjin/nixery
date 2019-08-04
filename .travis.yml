@@ -1,1 +1,6 @@
 language: nix
+before_script:
+  - nix-env -iA nixpkgs.cachix
+  - cachix use nixery
+script:
+  - nix-build | cachix push nixery
