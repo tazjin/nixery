@@ -30,7 +30,6 @@ rec {
     # or similar (as other required files will not be included), but
     # buildGoPackage requires a package path.
     goPackagePath = "github.com/google/nixery";
-
     goDeps = ./go-deps.nix;
     src    = ./.;
 
@@ -116,6 +115,7 @@ rec {
   in dockerTools.buildLayeredImage {
     name = "nixery";
     config.Cmd = ["${nixery-launch-script}/bin/nixery"];
+    maxLayers = 96;
     contents = [
       cacert
       coreutils
