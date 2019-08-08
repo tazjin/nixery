@@ -29,11 +29,10 @@
   packages ? "[]",
   # Optional bash script to run on the files prior to fixturizing the layer.
   extraCommands ? "", uid ? 0, gid ? 0,
-  # Docker's lowest maximum layer limit is 42-layers for an old
-  # version of the AUFS graph driver. We pick 24 to ensure there is
-  # plenty of room for extension. I believe the actual maximum is
-  # 128.
-  maxLayers ? 24,
+  # Docker's modern image storage mechanisms have a maximum of 125
+  # layers. To allow for some extensibility (via additional layers),
+  # the default here is set to something a little less than that.
+  maxLayers ? 96,
 
   # Configuration for which package set to use when building.
   #
