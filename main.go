@@ -328,7 +328,7 @@ func constructLayerUrl(cfg *config, digest string) (string, error) {
 		opts.Expires = time.Now().Add(5 * time.Minute)
 		return storage.SignedURL(cfg.bucket, object, &opts)
 	} else {
-		return ("https://storage.googleapis.com" + cfg.bucket + "/" + object), nil
+		return ("https://storage.googleapis.com/" + cfg.bucket + "/" + object), nil
 	}
 }
 
