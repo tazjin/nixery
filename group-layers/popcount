@@ -1,0 +1,13 @@
+#!/bin/bash
+set -ueo pipefail
+
+function graphsFor() {
+  local pkg="${1}"
+  local graphs=$(nix-build --timeout 2 --argstr target "${pkg}" popcount.nix || echo -n 'empty.json')
+  cat $graphs | jq -r -cM '.[] | .references[]'
+}
+
+for pkg in $(cat all-top-level.json | jq -r '.[]'); do
+  graphsFor "${pkg}" 2>/dev/null
+  echo "Printed refs for ${pkg}" >&2
+done
