@@ -108,9 +108,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
-	"fmt"
 	"regexp"
-	"os"
 
 	"gonum.org/v1/gonum/graph/simple"
 	"gonum.org/v1/gonum/graph/flow"
@@ -131,12 +129,20 @@ type exportReferences struct {
 	} `json:"graph"`
 }
 
+// Popularity data for each Nix package that was calculated in advance.
+//
+// Popularity is a number from 1-100 that represents the
+// popularity percentile in which this package resides inside
+// of the nixpkgs tree.
+type pkgsMetadata = map[string]int
+
 // closure as pointed to by the graph nodes.
 type closure struct {
 	GraphID int64
 	Path string
 	Size uint64
 	Refs []string
+	Popularity int
 	// TODO(tazjin): popularity and other funny business
 }
 
@@ -149,7 +155,36 @@ func (c *closure) DOTID() string {
 	return nixRegexp.ReplaceAllString(c.Path, "")
 }
 
-func insertEdges(graph *simple.DirectedGraph, cmap *map[string]*closure, node *closure) {
+// bigOrPopular checks whether this closure should be considered for
+// separation into its own layer, even if it would otherwise only
+// appear in a subtree of the dominator tree.
+func (c *closure) bigOrPopular(pkgs *pkgsMetadata) bool {
+	const sizeThreshold = 100 * 1000000 // 100MB
+
+	if c.Size > sizeThreshold {
+		return true
+	}
+
+	// TODO(tazjin): After generating the full data, this should
+	// be changed to something other than a simple inclusion
+	// (currently the test-data only contains the top 200
+	// packages).
+	pop, ok := (*pkgs)[c.DOTID()]
+	if ok {
+		log.Printf("%q is popular!\n", c.DOTID())
+	}
+	c.Popularity = pop
+	return ok
+}
+
+func insertEdges(graph *simple.DirectedGraph, pop *pkgsMetadata, cmap *map[string]*closure, node *closure) {
+	// Big or popular nodes get a separate edge from the top to
+	// flag them for their own layer.
+	if node.bigOrPopular(pop) && !graph.HasEdgeFromTo(0, node.ID()) {
+		edge := graph.NewEdge(graph.Node(0), node)
+		graph.SetEdge(edge)
+	}
+
 	for _, c := range node.Refs {
 		// Nix adds a self reference to each node, which
 		// should not be inserted.
@@ -161,7 +196,7 @@ func insertEdges(graph *simple.DirectedGraph, cmap *map[string]*closure, node *c
 }
 
 // Create a graph structure from the references supplied by Nix.
-func buildGraph(refs *exportReferences) *simple.DirectedGraph {
+func buildGraph(refs *exportReferences, pop *pkgsMetadata) *simple.DirectedGraph {
 	cmap := make(map[string]*closure)
 	graph := simple.NewDirectedGraph()
 
@@ -196,15 +231,15 @@ func buildGraph(refs *exportReferences) *simple.DirectedGraph {
 	}
 
 	for _, c := range cmap {
-		insertEdges(graph, &cmap, c)
+		insertEdges(graph, pop, &cmap, c)
 	}
 
-	gv, err := dot.Marshal(graph, "deps", "", "")
-	if err != nil {
-		log.Fatalf("Could not encode graph: %s\n", err)
-	}
-	fmt.Print(string(gv))
-	os.Exit(0)
+	// gv, err := dot.Marshal(graph, "deps", "", "")
+	// if err != nil {
+	// 	log.Fatalf("Could not encode graph: %s\n", err)
+	// }
+	// fmt.Print(string(gv))
+	// os.Exit(0)
 
 	return graph
 }
@@ -233,25 +268,16 @@ func dominate(graph *simple.DirectedGraph) {
 	if err != nil {
 		log.Fatalf("Could not encode graph: %s\n", err)
 	}
-	fmt.Print(string(gv))
-
-	// fmt.Printf("%v edges in the graph\n", graph.Edges().Len())
-	// top := 0
-	// for _, n := range dt.DominatedBy(0) {
-	// 	fmt.Printf("%q is top-level\n", n.(*closure).Path)
-	// 	top++
-	// }
-	// fmt.Printf("%v total top-level nodes\n", top)
-	// root := dt.Root().(*closure)
-	// fmt.Printf("dominator tree root is %q\n", root.Path)
-	// fmt.Printf("%v nodes can reach to 1\n", nodes.Len())
+	ioutil.WriteFile("graph.dot", gv, 0644)
 }
 
 func main() {
-	inputFile := flag.String("input", ".attrs.json", "Input file containing graph")
+	graphFile := flag.String("graph", ".attrs.json", "Input file containing graph")
+	popFile := flag.String("pop", "popularity.json", "Package popularity data")
 	flag.Parse()
 
-	file, err := ioutil.ReadFile(*inputFile)
+	// Parse graph data
+	file, err := ioutil.ReadFile(*graphFile)
 	if err != nil {
 		log.Fatalf("Failed to load input: %s\n", err)
 	}
@@ -262,6 +288,20 @@ func main() {
 		log.Fatalf("Failed to deserialise input: %s\n", err)
 	}
 
-	graph := buildGraph(&refs)
+	// Parse popularity data
+	popBytes, err := ioutil.ReadFile(*popFile)
+	if err != nil {
+		log.Fatalf("Failed to load input: %s\n", err)
+	}
+
+	var pop pkgsMetadata
+	err = json.Unmarshal(popBytes, &pop)
+	if err != nil {
+		log.Fatalf("Failed to deserialise input: %s\n", err)
+	}
+
+	log.Printf("%v\n", pop)
+
+	graph := buildGraph(&refs, &pop)
 	dominate(graph)
 }
