@@ -5,8 +5,8 @@
     fetch = {
       type = "git";
       url = "https://code.googlesource.com/gocloud";
-      rev = "edd0968ab5054ee810843a77774d81069989494b";
-      sha256 = "1mh8i72h6a1z9lp4cy9bwa2j87bm905zcsvmqwskdqi8z58cif4a";
+      rev = "77f6a3a292a7dbf66a5329de0d06326f1906b450";
+      sha256 = "1c9pkx782nbcp8jnl5lprcbzf97van789ky5qsncjgywjyymhigi";
     };
   }
   {
@@ -68,8 +68,8 @@
     fetch = {
       type = "git";
       url = "https://go.googlesource.com/sys";
-      rev = "fae7ac547cb717d141c433a2a173315e216b64c4";
-      sha256 = "11pl0dycm5d8ar7g1l1w5q2cx0lms8i15n8mxhilhkdd2xpmh8f0";
+      rev = "51ab0e2deafac1f46c46ad59cf0921be2f180c3d";
+      sha256 = "0xdhpckbql3bsqkpc2k5b1cpnq3q1qjqjjq2j3p707rfwb8nm91a";
     };
   }
   {
@@ -79,6 +79,15 @@
       url = "https://go.googlesource.com/text";
       rev = "342b2e1fbaa52c93f31447ad2c6abc048c63e475";
       sha256 = "0flv9idw0jm5nm8lx25xqanbkqgfiym6619w575p7nrdh0riqwqh";
+    };
+  }
+  {
+    goPackagePath = "gonum.org/v1/gonum";
+    fetch = {
+      type = "git";
+      url = "https://github.com/gonum/gonum";
+      rev = "ced62fe5104b907b6c16cb7e575c17b2e62ceddd";
+      sha256 = "1b7q6haabnp53igpmvr6a2414yralhbrldixx4kbxxg1apy8jdjg";
     };
   }
   {
