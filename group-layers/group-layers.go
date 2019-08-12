@@ -65,12 +65,11 @@
 //
 // If the list of layers fits within the layer budget, it is returned.
 //
-// Otherwise layers are merged together in this order:
+// Otherwise, a merge rating is calculated for each layer. This is the
+// product of the layer's total size and its root node's popularity.
 //
-// * layers whose root meets neither condition above
-// * layers whose root is popular
-// * layers whose root is big
-// * layers whose root meets both conditions
+// Layers are then merged in ascending order of merge ratings until
+// they fit into the layer budget.
 //
 // # Threshold values
 //
@@ -109,10 +108,10 @@ import (
 	"io/ioutil"
 	"log"
 	"regexp"
+	"sort"
 
-	"gonum.org/v1/gonum/graph/simple"
 	"gonum.org/v1/gonum/graph/flow"
-	"gonum.org/v1/gonum/graph/encoding/dot"
+	"gonum.org/v1/gonum/graph/simple"
 )
 
 // closureGraph represents the structured attributes Nix outputs when asking it
@@ -123,7 +122,7 @@ type exportReferences struct {
 	} `json:"exportReferencesGraph"`
 
 	Graph []struct {
-		Size uint64 `json:"closureSize`
+		Size uint64   `json:"closureSize"`
 		Path string   `json:"path"`
 		Refs []string `json:"references"`
 	} `json:"graph"`
@@ -136,14 +135,26 @@ type exportReferences struct {
 // of the nixpkgs tree.
 type pkgsMetadata = map[string]int
 
+// layer represents the data returned for each layer that Nix should
+// build for the container image.
+type layer struct {
+	Contents    []string `json:"contents"`
+	mergeRating uint64
+}
+
+func (a layer) merge(b layer) layer {
+	a.Contents = append(a.Contents, b.Contents...)
+	a.mergeRating += b.mergeRating
+	return a
+}
+
 // closure as pointed to by the graph nodes.
 type closure struct {
-	GraphID int64
-	Path string
-	Size uint64
-	Refs []string
+	GraphID    int64
+	Path       string
+	Size       uint64
+	Refs       []string
 	Popularity int
-	// TODO(tazjin): popularity and other funny business
 }
 
 func (c *closure) ID() int64 {
@@ -151,6 +162,7 @@ func (c *closure) ID() int64 {
 }
 
 var nixRegexp = regexp.MustCompile(`^/nix/store/[a-z0-9]+-`)
+
 func (c *closure) DOTID() string {
 	return nixRegexp.ReplaceAllString(c.Path, "")
 }
@@ -158,29 +170,30 @@ func (c *closure) DOTID() string {
 // bigOrPopular checks whether this closure should be considered for
 // separation into its own layer, even if it would otherwise only
 // appear in a subtree of the dominator tree.
-func (c *closure) bigOrPopular(pkgs *pkgsMetadata) bool {
+func (c *closure) bigOrPopular() bool {
 	const sizeThreshold = 100 * 1000000 // 100MB
 
 	if c.Size > sizeThreshold {
 		return true
 	}
 
-	// TODO(tazjin): After generating the full data, this should
-	// be changed to something other than a simple inclusion
-	// (currently the test-data only contains the top 200
-	// packages).
-	pop, ok := (*pkgs)[c.DOTID()]
-	if ok {
-		log.Printf("%q is popular!\n", c.DOTID())
+	// The threshold value used here is currently roughly the
+	// minimum number of references that only 1% of packages in
+	// the entire package set have.
+	//
+	// TODO(tazjin): Do this more elegantly by calculating
+	// percentiles for each package and using those instead.
+	if c.Popularity >= 1000 {
+		return true
 	}
-	c.Popularity = pop
-	return ok
+
+	return false
 }
 
-func insertEdges(graph *simple.DirectedGraph, pop *pkgsMetadata, cmap *map[string]*closure, node *closure) {
+func insertEdges(graph *simple.DirectedGraph, cmap *map[string]*closure, node *closure) {
 	// Big or popular nodes get a separate edge from the top to
 	// flag them for their own layer.
-	if node.bigOrPopular(pop) && !graph.HasEdgeFromTo(0, node.ID()) {
+	if node.bigOrPopular() && !graph.HasEdgeFromTo(0, node.ID()) {
 		edge := graph.NewEdge(graph.Node(0), node)
 		graph.SetEdge(edge)
 	}
@@ -205,18 +218,24 @@ func buildGraph(refs *exportReferences, pop *pkgsMetadata) *simple.DirectedGraph
 	//
 	// A map from store paths to IDs is kept to actually insert
 	// edges below.
-	root := &closure {
+	root := &closure{
 		GraphID: 0,
-		Path: "image_root",
+		Path:    "image_root",
 	}
 	graph.AddNode(root)
 
 	for idx, c := range refs.Graph {
-		node := &closure {
+		node := &closure{
 			GraphID: int64(idx + 1), // inc because of root node
-			Path: c.Path,
-			Size: c.Size,
-			Refs: c.Refs,
+			Path:    c.Path,
+			Size:    c.Size,
+			Refs:    c.Refs,
+		}
+
+		if p, ok := (*pop)[node.DOTID()]; ok {
+			node.Popularity = p
+		} else {
+			node.Popularity = 1
 		}
 
 		graph.AddNode(node)
@@ -231,49 +250,74 @@ func buildGraph(refs *exportReferences, pop *pkgsMetadata) *simple.DirectedGraph
 	}
 
 	for _, c := range cmap {
-		insertEdges(graph, pop, &cmap, c)
+		insertEdges(graph, &cmap, c)
 	}
-
-	// gv, err := dot.Marshal(graph, "deps", "", "")
-	// if err != nil {
-	// 	log.Fatalf("Could not encode graph: %s\n", err)
-	// }
-	// fmt.Print(string(gv))
-	// os.Exit(0)
 
 	return graph
 }
 
+// Extracts a subgraph starting at the specified root from the
+// dominator tree. The subgraph is converted into a flat list of
+// layers, each containing the store paths and merge rating.
+func groupLayer(dt *flow.DominatorTree, root *closure) layer {
+	size := root.Size
+	contents := []string{root.Path}
+	children := dt.DominatedBy(root.ID())
+
+	// This iteration does not use 'range' because the list being
+	// iterated is modified during the iteration (yes, I'm sorry).
+	for i := 0; i < len(children); i++ {
+		child := children[i].(*closure)
+		size += child.Size
+		contents = append(contents, child.Path)
+		children = append(children, dt.DominatedBy(child.ID())...)
+	}
+
+	return layer{
+		Contents: contents,
+		// TODO(tazjin): The point of this is to factor in
+		// both the size and the popularity when making merge
+		// decisions, but there might be a smarter way to do
+		// it than a plain multiplication.
+		mergeRating: uint64(root.Popularity) * size,
+	}
+}
+
 // Calculate the dominator tree of the entire package set and group
 // each top-level subtree into a layer.
-func dominate(graph *simple.DirectedGraph) {
+//
+// Layers are merged together until they fit into the layer budget,
+// based on their merge rating.
+func dominate(budget int, graph *simple.DirectedGraph) []layer {
 	dt := flow.Dominators(graph.Node(0), graph)
 
-	// convert dominator tree back into encodable graph
-	dg := simple.NewDirectedGraph()
-
-	for nodes := graph.Nodes(); nodes.Next(); {
-		dg.AddNode(nodes.Node())
+	var layers []layer
+	for _, n := range dt.DominatedBy(dt.Root().ID()) {
+		layers = append(layers, groupLayer(&dt, n.(*closure)))
 	}
 
-	for nodes := dg.Nodes(); nodes.Next(); {
-		node := nodes.Node()
-		for _, child := range dt.DominatedBy(node.ID()) {
-			edge := dg.NewEdge(node, child)
-			dg.SetEdge(edge)
-		}
+	sort.Slice(layers, func(i, j int) bool {
+		return layers[i].mergeRating < layers[j].mergeRating
+	})
+
+	if len(layers) > budget {
+		log.Printf("Ideal image has %v layers, but budget is %v\n", len(layers), budget)
 	}
 
-	gv, err := dot.Marshal(dg, "deps", "", "")
-	if err != nil {
-		log.Fatalf("Could not encode graph: %s\n", err)
+	for len(layers) > budget {
+		merged := layers[0].merge(layers[1])
+		layers[1] = merged
+		layers = layers[1:]
 	}
-	ioutil.WriteFile("graph.dot", gv, 0644)
+
+	return layers
 }
 
 func main() {
 	graphFile := flag.String("graph", ".attrs.json", "Input file containing graph")
 	popFile := flag.String("pop", "popularity.json", "Package popularity data")
+	outFile := flag.String("out", "layers.json", "File to write layers to")
+	layerBudget := flag.Int("budget", 94, "Total layer budget available")
 	flag.Parse()
 
 	// Parse graph data
@@ -300,8 +344,9 @@ func main() {
 		log.Fatalf("Failed to deserialise input: %s\n", err)
 	}
 
-	log.Printf("%v\n", pop)
-
 	graph := buildGraph(&refs, &pop)
-	dominate(graph)
+	layers := dominate(*layerBudget, graph)
+
+	j, _ := json.Marshal(layers)
+	ioutil.WriteFile(*outFile, j, 0644)
 }
