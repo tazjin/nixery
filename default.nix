@@ -25,32 +25,11 @@ rec {
   # data dependencies.
   nixery-server = callPackage ./server {};
 
-  # Nix expression (unimported!) which is used by Nixery to build
-  # container images.
-  nixery-builder = ./build-registry-image.nix;
-
-  # nixpkgs currently has an old version of mdBook. A new version is
-  # built here, but eventually the update will be upstreamed
-  # (nixpkgs#65890)
-  mdbook = rustPlatform.buildRustPackage rec {
-    name = "mdbook-${version}";
-    version = "0.3.1";
-    doCheck = false;
-
-    src = fetchFromGitHub {
-      owner = "rust-lang-nursery";
-      repo = "mdBook";
-      rev = "v${version}";
-      sha256 = "0py69267jbs6b7zw191hcs011cm1v58jz8mglqx3ajkffdfl3ghw";
-    };
-
-    cargoSha256 = "0qwhc42a86jpvjcaysmfcw8kmwa150lmz01flmlg74g6qnimff5m";
-  };
 
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
   # nixery.dev.
-  nixery-book = callPackage ./docs { inherit mdbook; };
+  nixery-book = callPackage ./docs {};
 
   # Wrapper script running the Nixery server with the above two data
   # dependencies configured.
