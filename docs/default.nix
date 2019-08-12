@@ -40,12 +40,12 @@ let
   };
 
   nix-1p = fetchFromGitHub {
-    owner  = "tazjin";
-    repo   = "nix-1p";
-    rev    = "3cd0f7d7b4f487d04a3f1e3ca8f2eb1ab958c49b";
+    owner = "tazjin";
+    repo = "nix-1p";
+    rev = "3cd0f7d7b4f487d04a3f1e3ca8f2eb1ab958c49b";
     sha256 = "02lpda03q580gyspkbmlgnb2cbm66rrcgqsv99aihpbwyjym81af";
   };
-in runCommand "nixery-book" {} ''
+in runCommand "nixery-book" { } ''
   mkdir -p $out
   cp -r ${./.}/* .
   chmod -R a+w src
