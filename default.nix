@@ -25,6 +25,8 @@ rec {
   # data dependencies.
   nixery-server = callPackage ./server {};
 
+  # Implementation of the image building & layering logic
+  nixery-build-image = callPackage ./build-image {};
 
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
@@ -37,7 +39,6 @@ rec {
   # In most cases, this will be the derivation a user wants if they
   # are installing Nixery directly.
   nixery-bin = writeShellScriptBin "nixery" ''
-    export NIX_BUILDER="${nixery-builder}"
     export WEB_DIR="${nixery-book}"
     exec ${nixery-server}/bin/nixery
   '';
@@ -84,6 +85,7 @@ rec {
       gnutar
       gzip
       nix
+      nixery-build-image
       nixery-launch-script
       openssh
     ];

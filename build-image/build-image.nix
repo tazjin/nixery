@@ -287,6 +287,6 @@ let
     pkgs = map (err: err.pkg) allContents.errors;
   };
 in writeText "manifest-output.json" (if (length allContents.errors) == 0
-  then toJSON (trace manifestOutput manifestOutput)
-  else toJSON (trace errorOutput errorOutput)
+  then toJSON manifestOutput
+  else toJSON errorOutput
 )
