@@ -15,9 +15,9 @@
 { buildGoPackage, lib }:
 
 buildGoPackage {
-  name   = "nixery-server";
+  name = "nixery-server";
   goDeps = ./go-deps.nix;
-  src    = ./.;
+  src = ./.;
 
   goPackagePath = "github.com/google/nixery";
 

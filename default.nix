@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-{ pkgs ? import <nixpkgs> {}
-, preLaunch ? "" }:
+{ pkgs ? import <nixpkgs> { }, preLaunch ? "" }:
 
 with pkgs;
 
@@ -23,7 +22,7 @@ rec {
   # Users will usually not want to use this directly, instead see the
   # 'nixery' derivation below, which automatically includes runtime
   # data dependencies.
-  nixery-server = callPackage ./server {};
+  nixery-server = callPackage ./server { };
 
   # Implementation of the image building & layering logic
   nixery-build-image = (import ./build-image { inherit pkgs; }).wrapper;
@@ -31,7 +30,7 @@ rec {
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
   # nixery.dev.
-  nixery-book = callPackage ./docs {};
+  nixery-book = callPackage ./docs { };
 
   # Wrapper script running the Nixery server with the above two data
   # dependencies configured.
@@ -76,7 +75,7 @@ rec {
     '';
   in dockerTools.buildLayeredImage {
     name = "nixery";
-    config.Cmd = ["${nixery-launch-script}/bin/nixery"];
+    config.Cmd = [ "${nixery-launch-script}/bin/nixery" ];
     maxLayers = 96;
     contents = [
       cacert
