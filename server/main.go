@@ -123,7 +123,6 @@ func signingOptsFromEnv() *storage.SignedURLOptions {
 type config struct {
 	bucket  string                    // GCS bucket to cache & serve layers
 	signing *storage.SignedURLOptions // Signing options to use for GCS URLs
-	builder string                    // Nix derivation for building images
 	port    string                    // Port on which to launch HTTP server
 	pkgs    *pkgSource                // Source for Nix package set
 }
@@ -208,16 +207,14 @@ func buildImage(ctx *context.Context, cfg *config, image *image, bucket *storage
 	}
 
 	args := []string{
-		"--no-out-link",
-		"--show-trace",
 		"--argstr", "name", image.name,
-		"--argstr", "packages", string(packages), cfg.builder,
+		"--argstr", "packages", string(packages),
 	}
 
 	if cfg.pkgs != nil {
 		args = append(args, "--argstr", "pkgSource", cfg.pkgs.renderSource(image.tag))
 	}
-	cmd := exec.Command("nix-build", args...)
+	cmd := exec.Command("nixery-build-image", args...)
 
 	outpipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -466,7 +463,6 @@ func getConfig(key, desc string) string {
 func main() {
 	cfg := &config{
 		bucket:  getConfig("BUCKET", "GCS bucket for layer storage"),
-		builder: getConfig("NIX_BUILDER", "Nix image builder code"),
 		port:    getConfig("PORT", "HTTP port"),
 		pkgs:    pkgSourceFromEnv(),
 		signing: signingOptsFromEnv(),
