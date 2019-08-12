@@ -54,12 +54,12 @@
   ...
 }:
 
-let
+with builtins; let
   # If a nixpkgs channel is requested, it is retrieved from Github (as
   # a tarball) and imported.
   fetchImportChannel = channel:
   let url = "https://github.com/NixOS/nixpkgs-channels/archive/${channel}.tar.gz";
-  in import (builtins.fetchTarball url) {};
+  in import (fetchTarball url) {};
 
   # If a git repository is requested, it is retrieved via
   # builtins.fetchGit which defaults to the git configuration of the
@@ -76,32 +76,31 @@ let
     # There are some additional caveats around whether the default
     # branch contains the specified revision, which need to be
     # explained to users.
-    spec = if (builtins.stringLength rev) == 40 then {
+    spec = if (stringLength rev) == 40 then {
       inherit url rev;
     } else {
       inherit url;
       ref = rev;
     };
-  in import (builtins.fetchGit spec) {};
+  in import (fetchGit spec) {};
 
-  importPath = path: import (builtins.toPath path) {};
+  importPath = path: import (toPath path) {};
 
-  source = builtins.split "!" pkgSource;
-  sourceType = builtins.elemAt source 0;
-  pkgs = with builtins;
+  source = split "!" pkgSource;
+  sourceType = elemAt source 0;
+  pkgs =
     if sourceType == "nixpkgs"
     then fetchImportChannel (elemAt source 2)
     else if sourceType == "git"
     then fetchImportGit (elemAt source 2) (elemAt source 4)
     else if sourceType == "path"
     then importPath (elemAt source 2)
-    else builtins.throw("Invalid package set source specification: ${pkgSource}");
+    else throw("Invalid package set source specification: ${pkgSource}");
 in
 
 # Since this is essentially a re-wrapping of some of the functionality that is
 # implemented in the dockerTools, we need all of its components in our top-level
 # namespace.
-with builtins;
 with pkgs;
 with dockerTools;
 
@@ -168,6 +167,11 @@ let
     paths = allContents.contents;
   };
 
+  popularity = builtins.fetchurl {
+    url = "https://storage.googleapis.com/nixery-layers/popularity/nixos-19.03-20190812.json";
+    sha256 = "16sxd49vqqg2nrhwynm36ba6bc2yff5cd5hf83wi0hanw5sx3svk";
+  };
+
   # Before actually creating any image layers, the store paths that need to be
   # included in the image must be sorted into the layers that they should go
   # into.
@@ -181,31 +185,37 @@ let
   # To invoke the program, a graph of all runtime references is created via
   # Nix's exportReferencesGraph feature - the resulting layers are read back
   # into Nix using import-from-derivation.
-  groupedLayers = runCommand "grouped-layers.json" {
-    buildInputs = [ groupLayers ];
+  groupedLayers = fromJSON (readFile (runCommand "grouped-layers.json" {
+    __structuredAttrs = true;
+    exportReferencesGraph.graph = allContents.contents;
+    PATH = "${groupLayers}/bin";
+    builder = toFile "builder" ''
+      . .attrs.sh
+      group-layers --budget ${toString (maxLayers - 1)} --pop ${popularity} --out ''${outputs[out]}
+    '';
+  } ""));
+
+  # Given a list of store paths, create an image layer tarball with
+  # their contents.
+  pathsToLayer = paths: runCommand "layer.tar" {
   } ''
-    group-layers --fnorg
+    tar --no-recursion -rf "$out" \
+        --mtime="@$SOURCE_DATE_EPOCH" \
+        --owner=0 --group=0 /nix /nix/store
+
+    tar -rpf "$out" --hard-dereference --sort=name \
+        --mtime="@$SOURCE_DATE_EPOCH" \
+        --owner=0 --group=0 ${lib.concatStringsSep " " paths}
   '';
 
-  # The image build infrastructure expects to be outputting a slightly different
-  # format than the one we serve over the registry protocol. To work around its
-  # expectations we need to provide an empty JSON file that it can write some
-  # fun data into.
-  emptyJson = writeText "empty.json" "{}";
-
-  bulkLayers = mkManyPureLayers {
-    name = baseName;
-    configJson = emptyJson;
-    closure = writeText "closure" "${contentsEnv} ${emptyJson}";
-    # One layer will be taken up by the customisationLayer, so
-    # take up one less.
-    maxLayers = maxLayers - 1;
-  };
+  bulkLayers = writeText "bulk-layers"
+  (lib.concatStringsSep "\n" (map (layer: pathsToLayer layer.contents)
+                                   groupedLayers));
 
   customisationLayer = mkCustomisationLayer {
     name = baseName;
     contents = contentsEnv;
-    baseJson = emptyJson;
+    baseJson = writeText "empty.json" "{}";
     inherit uid gid extraCommands;
   };
 
@@ -214,23 +224,22 @@ let
   #
   # This computes both an MD5 and a SHA256 hash of each layer, which are used
   # for different purposes. See the registry server implementation for details.
-  #
-  # Some of this logic is copied straight from `buildLayeredImage`.
   allLayersJson = runCommand "fs-layer-list.json" {
     buildInputs = [ coreutils findutils jq openssl ];
   } ''
-      find ${bulkLayers} -mindepth 1 -maxdepth 1 | sort -t/ -k5 -n > layer-list
-      echo ${customisationLayer} >> layer-list
+      cat ${bulkLayers} | sort -t/ -k5 -n > layer-list
+      echo -n layer-list:
+      cat layer-list
+      echo ${customisationLayer}/layer.tar >> layer-list
 
       for layer in $(cat layer-list); do
-        layerPath="$layer/layer.tar"
-        layerSha256=$(sha256sum $layerPath | cut -d ' ' -f1)
+        layerSha256=$(sha256sum $layer | cut -d ' ' -f1)
         # The server application compares binary MD5 hashes and expects base64
         # encoding instead of hex.
-        layerMd5=$(openssl dgst -md5 -binary $layerPath | openssl enc -base64)
-        layerSize=$(wc -c $layerPath | cut -d ' ' -f1)
+        layerMd5=$(openssl dgst -md5 -binary $layer | openssl enc -base64)
+        layerSize=$(wc -c $layer | cut -d ' ' -f1)
 
-        jq -n -c --arg sha256 $layerSha256 --arg md5 $layerMd5 --arg size $layerSize --arg path $layerPath \
+        jq -n -c --arg sha256 $layerSha256 --arg md5 $layerMd5 --arg size $layerSize --arg path $layer \
           '{ size: ($size | tonumber), sha256: $sha256, md5: $md5, path: $path }' >> fs-layers
       done
 
@@ -309,6 +318,6 @@ let
     pkgs = map (err: err.pkg) allContents.errors;
   };
 in writeText "manifest-output.json" (if (length allContents.errors) == 0
-  then toJSON groupedLayers # manifestOutput
+  then toJSON manifestOutput
   else toJSON errorOutput
 )
