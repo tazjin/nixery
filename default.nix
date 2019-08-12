@@ -26,7 +26,7 @@ rec {
   nixery-server = callPackage ./server {};
 
   # Implementation of the image building & layering logic
-  nixery-build-image = callPackage ./build-image {};
+  nixery-build-image = (import ./build-image { inherit pkgs; }).wrapper;
 
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at

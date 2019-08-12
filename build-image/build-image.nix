@@ -22,6 +22,8 @@
   name,
   # Image tag, the Nix's output hash will be used if null
   tag ? null,
+  # Tool used to determine layer grouping
+  groupLayers,
   # Files to put on the image (a nix store path or list of paths).
   contents ? [],
   # Packages to install by name (which must refer to top-level attributes of
@@ -48,7 +50,8 @@
   # '!' was chosen as the separator because `builtins.split` does not
   # support regex escapes and there are few other candidates. It
   # doesn't matter much because this is invoked by the server.
-  pkgSource ? "nixpkgs!nixos-19.03"
+  pkgSource ? "nixpkgs!nixos-19.03",
+  ...
 }:
 
 let
@@ -164,6 +167,25 @@ let
     name = "bulk-layers";
     paths = allContents.contents;
   };
+
+  # Before actually creating any image layers, the store paths that need to be
+  # included in the image must be sorted into the layers that they should go
+  # into.
+  #
+  # How contents are allocated to each layer is decided by the `group-layers.go`
+  # program. The mechanism used is described at the top of the program's source
+  # code, or alternatively in the layering design document:
+  #
+  #   https://storage.googleapis.com/nixdoc/nixery-layers.html
+  #
+  # To invoke the program, a graph of all runtime references is created via
+  # Nix's exportReferencesGraph feature - the resulting layers are read back
+  # into Nix using import-from-derivation.
+  groupedLayers = runCommand "grouped-layers.json" {
+    buildInputs = [ groupLayers ];
+  } ''
+    group-layers --fnorg
+  '';
 
   # The image build infrastructure expects to be outputting a slightly different
   # format than the one we serve over the registry protocol. To work around its
@@ -287,6 +309,6 @@ let
     pkgs = map (err: err.pkg) allContents.errors;
   };
 in writeText "manifest-output.json" (if (length allContents.errors) == 0
-  then toJSON manifestOutput
+  then toJSON groupedLayers # manifestOutput
   else toJSON errorOutput
 )
