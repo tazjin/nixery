@@ -18,9 +18,11 @@
 # registry API.
 
 {
+  # Package set to used (this will usually be loaded by load-pkgs.nix)
+  pkgs,
   # Image Name
   name,
-  # Image tag, the Nix's output hash will be used if null
+  # Image tag, the Nix output's hash will be used if null
   tag ? null,
   # Tool used to determine layer grouping
   groupLayers,
@@ -36,71 +38,13 @@
   # the default here is set to something a little less than that.
   maxLayers ? 96,
 
-  # Configuration for which package set to use when building.
-  #
-  # Both channels of the public nixpkgs repository as well as imports
-  # from private repositories are supported.
-  #
-  # This setting can be invoked with three different formats:
-  #
-  # 1. nixpkgs!$channel (e.g. nixpkgs!nixos-19.03)
-  # 2. git!$repo!$rev (e.g. git!git@github.com:NixOS/nixpkgs.git!master)
-  # 3. path!$path (e.g. path!/var/local/nixpkgs)
-  #
-  # '!' was chosen as the separator because `builtins.split` does not
-  # support regex escapes and there are few other candidates. It
-  # doesn't matter much because this is invoked by the server.
-  pkgSource ? "nixpkgs!nixos-19.03",
   ...
 }:
-
-with builtins; let
-  # If a nixpkgs channel is requested, it is retrieved from Github (as
-  # a tarball) and imported.
-  fetchImportChannel = channel:
-  let url = "https://github.com/NixOS/nixpkgs-channels/archive/${channel}.tar.gz";
-  in import (fetchTarball url) {};
-
-  # If a git repository is requested, it is retrieved via
-  # builtins.fetchGit which defaults to the git configuration of the
-  # outside environment. This means that user-configured SSH
-  # credentials etc. are going to work as expected.
-  fetchImportGit = url: rev:
-  let
-    # builtins.fetchGit needs to know whether 'rev' is a reference
-    # (e.g. a branch/tag) or a revision (i.e. a commit hash)
-    #
-    # Since this data is being extrapolated from the supplied image
-    # tag, we have to guess if we want to avoid specifying a format.
-    #
-    # There are some additional caveats around whether the default
-    # branch contains the specified revision, which need to be
-    # explained to users.
-    spec = if (stringLength rev) == 40 then {
-      inherit url rev;
-    } else {
-      inherit url;
-      ref = rev;
-    };
-  in import (fetchGit spec) {};
-
-  importPath = path: import (toPath path) {};
-
-  source = split "!" pkgSource;
-  sourceType = elemAt source 0;
-  pkgs =
-    if sourceType == "nixpkgs"
-    then fetchImportChannel (elemAt source 2)
-    else if sourceType == "git"
-    then fetchImportGit (elemAt source 2) (elemAt source 4)
-    else if sourceType == "path"
-    then importPath (elemAt source 2)
-    else throw("Invalid package set source specification: ${pkgSource}");
-in
 
 # Since this is essentially a re-wrapping of some of the functionality that is
 # implemented in the dockerTools, we need all of its components in our top-level
 # namespace.
+with builtins;
 with pkgs;
 with dockerTools;
 

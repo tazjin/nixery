@@ -16,14 +16,17 @@
 # moves the files needed to call the Nix builds at runtime in the
 # correct locations.
 
-{ pkgs ? import <nixpkgs> { }, self ? ./.
+{ pkgs ? null, self ? ./.
 
   # Because of the insanity occuring below, this function must mirror
   # all arguments of build-image.nix.
-, tag ? null, name ? null, packages ? null, maxLayers ? null, pkgSource ? null
+, pkgSource ? "nixpkgs!nixos-19.03"
+, tag ? null, name ? null, packages ? null, maxLayers ? null
 }@args:
 
-with pkgs; rec {
+let pkgs = import ./load-pkgs.nix { inherit pkgSource; };
+in with pkgs; rec {
+
   groupLayers = buildGoPackage {
     name = "group-layers";
     goDeps = ./go-deps.nix;
@@ -76,7 +79,7 @@ with pkgs; rec {
   };
 
   buildImage = import ./build-image.nix
-    ({ inherit groupLayers; } // (lib.filterAttrs (_: v: v != null) args));
+    ({ inherit pkgs groupLayers; } // (lib.filterAttrs (_: v: v != null) args));
 
   # Wrapper script which is called by the Nixery server to trigger an
   # actual image build. This exists to avoid having to specify the
