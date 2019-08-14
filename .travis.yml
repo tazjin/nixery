@@ -1,6 +1,51 @@
 language: nix
+services:
+  - docker
 before_script:
-  - nix-env -iA nixpkgs.cachix
-  - cachix use nixery
+  - |
+    mkdir test-files
+    echo ${GOOGLE_KEY} | base64 -d > test-files/key.json
+    echo ${GCS_SIGNING_PEM} | base64 -d > test-files/gcs.pem
+    nix-env -iA nixpkgs.cachix -A nixpkgs.go
+    cachix use nixery
 script:
+  - test -z $(gofmt -l server/ build-image/)
   - nix-build | cachix push nixery
+
+  # This integration test makes sure that the container image built
+  # for Nixery itself runs fine in Docker, and that images pulled
+  # from it work in Docker.
+  #
+  # Output from the Nixery container is printed at the end of the
+  # test regardless of test status.
+  - IMG=$(docker load -q -i $(nix-build -A nixery-image) | awk '{ print $3 }')
+  - echo "Loaded Nixery image as ${IMG}"
+
+  - |
+    docker run -d -p 8080:8080 --name nixery \
+      -v ${PWD}/test-files:/var/nixery \
+      -e PORT=8080 \
+      -e BUCKET=nixery-layers \
+      -e GOOGLE_CLOUD_PROJECT=nixery \
+      -e GOOGLE_APPLICATION_CREDENTIALS=/var/nixery/key.json \
+      ${IMG}
+
+  # print all of the container's logs regardless of success
+  - |
+    function print_logs {
+      echo "Nixery container logs:"
+      docker logs nixery
+    }
+    trap print_logs EXIT
+
+  # Give the container ~20 seconds to come up
+  - |
+    attempts=0
+    echo -n "Waiting for Nixery to start ..."
+    until $(curl --fail --silent "http://localhost:8080/v2/"); do
+      [[ attempts -eq 30 ]] && echo "Nixery container failed to start!" && exit 1
+      ((attempts++))
+      echo -n "."
+      sleep 1
+    done
+  - docker run --rm localhost:8080/hello hello
