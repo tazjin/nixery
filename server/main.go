@@ -125,6 +125,7 @@ type registryHandler struct {
 	cfg    *config.Config
 	ctx    *context.Context
 	bucket *storage.BucketHandle
+	cache  *builder.BuildCache
 }
 
 func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +141,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		imageTag := manifestMatches[2]
 		log.Printf("Requesting manifest for image %q at tag %q", imageName, imageTag)
 		image := builder.ImageFromName(imageName, imageTag)
-		buildResult, err := builder.BuildImage(h.ctx, h.cfg, &image, h.bucket)
+		buildResult, err := builder.BuildImage(h.ctx, h.cfg, h.cache, &image, h.bucket)
 
 		if err != nil {
 			writeError(w, 500, "UNKNOWN", "image build failure")
@@ -192,6 +193,7 @@ func main() {
 	cfg := config.FromEnv()
 	ctx := context.Background()
 	bucket := prepareBucket(&ctx, cfg)
+	cache := builder.NewCache()
 
 	log.Printf("Starting Kubernetes Nix controller on port %s\n", cfg.Port)
 
@@ -200,6 +202,7 @@ func main() {
 		cfg:    cfg,
 		ctx:    &ctx,
 		bucket: bucket,
+		cache:  &cache,
 	})
 
 	// All other roots are served by the static file server.

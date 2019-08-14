@@ -69,10 +69,10 @@ func ImageFromName(name string, tag string) Image {
 //
 // The later field is simply treated as opaque JSON and passed through.
 type BuildResult struct {
-	Error string   `json:"error"`
-	Pkgs  []string `json:"pkgs"`
+	Error    string          `json:"error"`
+	Pkgs     []string        `json:"pkgs"`
+	Manifest json.RawMessage `json:"manifest"`
 
-	Manifest       json.RawMessage `json:"manifest"`
 	LayerLocations map[string]struct {
 		Path string `json:"path"`
 		Md5  []byte `json:"md5"`
@@ -99,50 +99,57 @@ func convenienceNames(packages []string) []string {
 
 // Call out to Nix and request that an image be built. Nix will, upon success,
 // return a manifest for the container image.
-func BuildImage(ctx *context.Context, cfg *config.Config, image *Image, bucket *storage.BucketHandle) (*BuildResult, error) {
-	packages, err := json.Marshal(image.Packages)
-	if err != nil {
-		return nil, err
+func BuildImage(ctx *context.Context, cfg *config.Config, cache *BuildCache, image *Image, bucket *storage.BucketHandle) (*BuildResult, error) {
+	resultFile, cached := cache.manifestFromCache(image)
+
+	if !cached {
+		packages, err := json.Marshal(image.Packages)
+		if err != nil {
+			return nil, err
+		}
+
+		args := []string{
+			"--argstr", "name", image.Name,
+			"--argstr", "packages", string(packages),
+		}
+
+		if cfg.Pkgs != nil {
+			args = append(args, "--argstr", "pkgSource", cfg.Pkgs.Render(image.Tag))
+		}
+		cmd := exec.Command("nixery-build-image", args...)
+
+		outpipe, err := cmd.StdoutPipe()
+		if err != nil {
+			return nil, err
+		}
+
+		errpipe, err := cmd.StderrPipe()
+		if err != nil {
+			return nil, err
+		}
+
+		if err = cmd.Start(); err != nil {
+			log.Println("Error starting nix-build:", err)
+			return nil, err
+		}
+		log.Printf("Started Nix image build for '%s'", image.Name)
+
+		stdout, _ := ioutil.ReadAll(outpipe)
+		stderr, _ := ioutil.ReadAll(errpipe)
+
+		if err = cmd.Wait(); err != nil {
+			// TODO(tazjin): Propagate errors upwards in a usable format.
+			log.Printf("nix-build execution error: %s\nstdout: %s\nstderr: %s\n", err, stdout, stderr)
+			return nil, err
+		}
+
+		log.Println("Finished Nix image build")
+
+		resultFile = strings.TrimSpace(string(stdout))
+		cache.cacheManifest(image, resultFile)
 	}
 
-	args := []string{
-		"--argstr", "name", image.Name,
-		"--argstr", "packages", string(packages),
-	}
-
-	if cfg.Pkgs != nil {
-		args = append(args, "--argstr", "pkgSource", cfg.Pkgs.Render(image.Tag))
-	}
-	cmd := exec.Command("nixery-build-image", args...)
-
-	outpipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	errpipe, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	if err = cmd.Start(); err != nil {
-		log.Println("Error starting nix-build:", err)
-		return nil, err
-	}
-	log.Printf("Started Nix image build for '%s'", image.Name)
-
-	stdout, _ := ioutil.ReadAll(outpipe)
-	stderr, _ := ioutil.ReadAll(errpipe)
-
-	if err = cmd.Wait(); err != nil {
-		// TODO(tazjin): Propagate errors upwards in a usable format.
-		log.Printf("nix-build execution error: %s\nstdout: %s\nstderr: %s\n", err, stdout, stderr)
-		return nil, err
-	}
-
-	log.Println("Finished Nix image build")
-
-	buildOutput, err := ioutil.ReadFile(strings.TrimSpace(string(stdout)))
+	buildOutput, err := ioutil.ReadFile(resultFile)
 	if err != nil {
 		return nil, err
 	}
@@ -151,15 +158,20 @@ func BuildImage(ctx *context.Context, cfg *config.Config, image *Image, bucket *
 	// contained layers to the bucket. Only the manifest itself is
 	// re-serialised to JSON and returned.
 	var result BuildResult
+
 	err = json.Unmarshal(buildOutput, &result)
 	if err != nil {
 		return nil, err
 	}
 
 	for layer, meta := range result.LayerLocations {
-		err = uploadLayer(ctx, bucket, layer, meta.Path, meta.Md5)
-		if err != nil {
-			return nil, err
+		if !cache.hasSeenLayer(layer) {
+			err = uploadLayer(ctx, bucket, layer, meta.Path, meta.Md5)
+			if err != nil {
+				return nil, err
+			}
+
+			cache.sawLayer(layer)
 		}
 	}
 
