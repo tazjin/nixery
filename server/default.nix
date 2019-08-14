@@ -21,6 +21,14 @@ buildGoPackage {
 
   goPackagePath = "github.com/google/nixery";
 
+  # Enable checks and configure check-phase to include vet:
+  doCheck = true;
+  preCheck = ''
+    for pkg in $(getGoDirs ""); do
+      buildGoDir vet "$pkg"
+    done
+  '';
+
   meta = {
     description = "Container image builder serving Nix-backed images";
     homepage = "https://github.com/google/nixery";
