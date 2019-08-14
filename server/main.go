@@ -195,7 +195,7 @@ func main() {
 	bucket := prepareBucket(&ctx, cfg)
 	cache := builder.NewCache()
 
-	log.Printf("Starting Kubernetes Nix controller on port %s\n", cfg.Port)
+	log.Printf("Starting Nixery on port %s\n", cfg.Port)
 
 	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{
