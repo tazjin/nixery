@@ -7,8 +7,11 @@ contain packages from the [Nix][] package manager. Images with arbitrary
 packages can be requested via the image name.
 
 Nix not only provides the packages to include in the images, but also builds the
-images themselves by using an interesting layering strategy described in [this
-blog post][layers].
+images themselves by using a special [layering strategy][] that optimises for
+cache efficiency.
+
+For general information on why using Nix makes sense for container images, check
+out [this blog post][layers].
 
 ## Quick start
 
@@ -65,13 +68,11 @@ availability.
 
 ### Who made this?
 
-Nixery was written mostly by [tazjin][].
-
-[grahamc][] authored the image layering strategy. Many people have contributed
-to Nix over time, maybe you could become one of them?
+Nixery was written by [tazjin][], but many people have contributed to Nix over
+time, maybe you could become one of them?
 
 [Nixery]: https://github.com/google/nixery
 [Nix]: https://nixos.org/nix
+[layering-strategy]: https://storage.googleapis.com/nixdoc/nixery-layers.html
 [layers]: https://grahamc.com/blog/nix-and-layered-docker-images
 [tazjin]: https://github.com/tazjin
-[grahamc]: https://github.com/grahamc
