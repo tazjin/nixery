@@ -51,7 +51,8 @@ does not allow uppercase characters, so the Nix code will translate something
 like `haskellpackages` (lowercased) to the correct attribute name.
 
 After identifying all contents, Nix determines the contents of each layer while
-optimising for the best possible cache efficiency.
+optimising for the best possible cache efficiency (see the [layering design
+doc][] for details).
 
 Finally it builds each layer, assembles the image manifest as JSON structure,
 and yields this manifest back to the web server.
@@ -103,3 +104,4 @@ to run the image produced by Nixery.
 
 [gcs]: https://cloud.google.com/storage/
 [signed URLs]: https://cloud.google.com/storage/docs/access-control/signed-urls
+[layering design doc]: https://storage.googleapis.com/nixdoc/nixery-layers.html
