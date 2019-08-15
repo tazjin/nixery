@@ -13,6 +13,10 @@ cache efficiency.
 For general information on why using Nix makes sense for container images, check
 out [this blog post][layers].
 
+## Demo
+
+<script src="https://asciinema.org/a/262583.js" id="asciicast-262583" async data-autoplay="true" data-loop="true"></script>
+
 ## Quick start
 
 Simply pull an image from this registry, separating each package you want
