@@ -25,23 +25,14 @@ images. The design for this is outlined in [a public gist][gist].
 
 This is not an officially supported Google project.
 
-## Usage example
+## Demo
 
-Using the publicly available Nixery instance at `nixery.dev`, one could
-retrieve a container image containing `curl` and an interactive shell like this:
+Click the image to see an example in which an image containing an interactive
+shell and GNU `hello` is downloaded.
 
-```shell
-tazjin@tazbox:~$ sudo docker run -ti nixery.dev/shell/curl bash
-Unable to find image 'nixery.dev/shell/curl:latest' locally
-latest: Pulling from shell/curl
-7734b79e1ba1: Already exists
-b0d2008d18cd: Pull complete
-< ... some layers omitted ...>
-Digest: sha256:178270bfe84f74548b6a43347d73524e5c2636875b673675db1547ec427cf302
-Status: Downloaded newer image for nixery.dev/shell/curl:latest
-bash-4.4# curl --version
-curl 7.64.0 (x86_64-pc-linux-gnu) libcurl/7.64.0 OpenSSL/1.0.2q zlib/1.2.11 libssh2/1.8.0 nghttp2/1.35.1
-```
+[![asciicast](https://asciinema.org/a/262583.png)](https://asciinema.org/a/262583?autoplay=1)
+
+To try it yourself, head to [nixery.dev][public]!
 
 The special meta-package `shell` provides an image base with many core
 components (such as `bash` and `coreutils`) that users commonly expect in
