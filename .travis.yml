@@ -28,6 +28,8 @@ script:
       -e BUCKET=nixery-layers \
       -e GOOGLE_CLOUD_PROJECT=nixery \
       -e GOOGLE_APPLICATION_CREDENTIALS=/var/nixery/key.json \
+      -e GCS_SIGNING_ACCOUNT="${GCS_SIGNING_ACCOUNT}" \
+      -e GCS_SIGNING_KEY=/var/nixery/gcs.pem \
       ${IMG}
 
   # print all of the container's logs regardless of success
