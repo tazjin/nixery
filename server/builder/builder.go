@@ -88,7 +88,7 @@ type BuildResult struct {
 //
 // * `shell`: Includes bash, coreutils and other common command-line tools
 func convenienceNames(packages []string) []string {
-	shellPackages := []string{"bashInteractive", "coreutils", "moreutils", "nano"}
+	shellPackages := []string{"bashInteractive", "cacert", "coreutils", "iana-etc", "moreutils", "nano"}
 
 	if packages[0] == "shell" {
 		return append(packages[1:], shellPackages...)
