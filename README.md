@@ -14,14 +14,16 @@ user intends to include in the image is specified as a path component of the
 image name.
 
 The path components refer to top-level keys in `nixpkgs` and are used to build a
-container image using Nix's [buildLayeredImage][] functionality.
+container image using a [layering strategy][] that optimises for caching popular
+and/or large dependencies.
 
 A public instance as well as additional documentation is available at
 [nixery.dev][public].
 
-The project started out with the intention of becoming a Kubernetes controller
-that can serve declarative image specifications specified in CRDs as container
-images. The design for this is outlined in [a public gist][gist].
+The project started out inspired by the [buildLayeredImage][] blog post with the
+intention of becoming a Kubernetes controller that can serve declarative image
+specifications specified in CRDs as container images. The design for this was
+outlined in [a public gist][gist].
 
 This is not an officially supported Google project.
 
@@ -94,6 +96,7 @@ correct caching behaviour, addressing and so on.
 See [issue #4](https://github.com/google/nixery/issues/4).
 
 [Nix]: https://nixos.org/
+[layering strategy]: https://storage.googleapis.com/nixdoc/nixery-layers.html
 [gist]: https://gist.github.com/tazjin/08f3d37073b3590aacac424303e6f745
 [buildLayeredImage]: https://grahamc.com/blog/nix-and-layered-docker-images
 [public]: https://nixery.dev
