@@ -61,6 +61,8 @@ rec {
       # Create the build user/group required by Nix
       echo 'nixbld:x:30000:nixbld' >> /etc/group
       echo 'nixbld:x:30000:30000:nixbld:/tmp:/bin/bash' >> /etc/passwd
+      echo 'root:x:0:0:root:/root:/bin/bash' >> /etc/passwd
+      echo 'root:x:0:' >> /etc/group
 
       # Disable sandboxing to avoid running into privilege issues
       mkdir -p /etc/nix
@@ -80,6 +82,7 @@ rec {
     config.Cmd = [ "${nixery-launch-script}/bin/nixery" ];
     maxLayers = 96;
     contents = [
+      bashInteractive
       cacert
       coreutils
       git
@@ -89,6 +92,7 @@ rec {
       nixery-build-image
       nixery-launch-script
       openssh
+      zlib
     ];
   };
 }
