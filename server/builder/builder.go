@@ -27,6 +27,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"cloud.google.com/go/storage"
@@ -50,12 +51,21 @@ type Image struct {
 //
 // It will expand convenience names under the hood (see the `convenienceNames`
 // function below).
+//
+// Once assembled the image structure uses a sorted representation of
+// the name. This is to avoid unnecessarily cache-busting images if
+// only the order of requested packages has changed.
 func ImageFromName(name string, tag string) Image {
-	packages := strings.Split(name, "/")
+	pkgs := strings.Split(name, "/")
+	expanded := convenienceNames(pkgs)
+
+	sort.Strings(pkgs)
+	sort.Strings(expanded)
+
 	return Image{
-		Name:     name,
+		Name:     strings.Join(pkgs, "/"),
 		Tag:      tag,
-		Packages: convenienceNames(packages),
+		Packages: expanded,
 	}
 }
 
