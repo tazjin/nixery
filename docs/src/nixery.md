@@ -77,6 +77,6 @@ time, maybe you could become one of them?
 
 [Nixery]: https://github.com/google/nixery
 [Nix]: https://nixos.org/nix
-[layering-strategy]: https://storage.googleapis.com/nixdoc/nixery-layers.html
+[layering strategy]: https://storage.googleapis.com/nixdoc/nixery-layers.html
 [layers]: https://grahamc.com/blog/nix-and-layered-docker-images
 [tazjin]: https://github.com/tazjin
