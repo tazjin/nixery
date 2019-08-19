@@ -1,6 +1,8 @@
 language: nix
 services:
   - docker
+env:
+  - NIX_PATH=nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/88d9f776091896cfe57dc6fbdf246e7d27d5f105.tar.gz
 before_script:
   - |
     mkdir test-files
