@@ -4,12 +4,11 @@ services:
 env:
   - NIX_PATH=nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/88d9f776091896cfe57dc6fbdf246e7d27d5f105.tar.gz
 before_script:
-  - |
-    mkdir test-files
-    echo ${GOOGLE_KEY} | base64 -d > test-files/key.json
-    echo ${GCS_SIGNING_PEM} | base64 -d > test-files/gcs.pem
-    nix-env -iA nixpkgs.cachix -A nixpkgs.go
-    cachix use nixery
+  - mkdir test-files
+  - echo ${GOOGLE_KEY} | base64 -d > test-files/key.json
+  - echo ${GCS_SIGNING_PEM} | base64 -d > test-files/gcs.pem
+  - nix-env -f '<nixpkgs>' -iA cachix -A go
+  - cachix use nixery
 script:
   - test -z $(gofmt -l server/ build-image/)
   - nix-build | cachix push nixery
