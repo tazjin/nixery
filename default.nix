@@ -90,6 +90,7 @@ rec {
       git
       gnutar
       gzip
+      iana-etc
       nix
       nixery-build-image
       nixery-launch-script
