@@ -42,8 +42,8 @@ let
   nix-1p = fetchFromGitHub {
     owner = "tazjin";
     repo = "nix-1p";
-    rev = "3cd0f7d7b4f487d04a3f1e3ca8f2eb1ab958c49b";
-    sha256 = "02lpda03q580gyspkbmlgnb2cbm66rrcgqsv99aihpbwyjym81af";
+    rev = "e0a051a016b9118bea90ec293d6cd346b9707e77";
+    sha256 = "0d1lfkxg03lki8dc3229g1cgqiq3nfrqgrknw99p6w0zk1pjd4dj";
   };
 in runCommand "nixery-book" { } ''
   mkdir -p $out
