@@ -39,14 +39,11 @@
   ...
 }:
 
-# Since this is essentially a re-wrapping of some of the functionality that is
-# implemented in the dockerTools, we need all of its components in our top-level
-# namespace.
 with builtins;
-with pkgs;
-with dockerTools;
 
 let
+  inherit (pkgs) lib runCommand writeText;
+
   tarLayer = "application/vnd.docker.image.rootfs.diff.tar";
   baseName = baseNameOf name;
 
@@ -150,7 +147,7 @@ let
                                    groupedLayers));
 
   # Create a symlink forest into all top-level store paths.
-  contentsEnv = symlinkJoin {
+  contentsEnv = pkgs.symlinkJoin {
     name = "bulk-layers";
     paths = allContents.contents;
   };
@@ -172,7 +169,7 @@ let
   # This computes both an MD5 and a SHA256 hash of each layer, which are used
   # for different purposes. See the registry server implementation for details.
   allLayersJson = runCommand "fs-layer-list.json" {
-    buildInputs = [ coreutils findutils jq openssl ];
+    buildInputs = with pkgs; [ coreutils jq openssl ];
   } ''
       cat ${bulkLayers} | sort -t/ -k5 -n > layer-list
       echo ${customisationLayer} >> layer-list
@@ -204,7 +201,7 @@ let
   };
   configJson = writeText "${baseName}-config.json" (toJSON config);
   configMetadata = fromJSON (readFile (runCommand "config-meta" {
-    buildInputs = [ jq openssl ];
+    buildInputs = with pkgs; [ jq openssl ];
   } ''
     size=$(wc -c ${configJson} | cut -d ' ' -f1)
     sha256=$(sha256sum ${configJson} | cut -d ' ' -f1)
