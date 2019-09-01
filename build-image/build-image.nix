@@ -31,8 +31,6 @@
   # Packages to install by name (which must refer to top-level attributes of
   # nixpkgs). This is passed in as a JSON-array in string form.
   packages ? "[]",
-  # Optional bash script to run on the files prior to fixturizing the layer.
-  extraCommands ? "", uid ? 0, gid ? 0,
   # Docker's modern image storage mechanisms have a maximum of 125
   # layers. To allow for some extensibility (via additional layers),
   # the default here is set to something a little less than that.
@@ -106,11 +104,6 @@ let
         fetched = (map (deepFetch pkgs) (fromJSON packages));
     in foldl' splitter init fetched;
 
-  contentsEnv = symlinkJoin {
-    name = "bulk-layers";
-    paths = allContents.contents;
-  };
-
   popularity = builtins.fetchurl {
     url = "https://storage.googleapis.com/nixery-layers/popularity/nixos-19.03-20190812.json";
     sha256 = "16sxd49vqqg2nrhwynm36ba6bc2yff5cd5hf83wi0hanw5sx3svk";
@@ -156,12 +149,22 @@ let
   (lib.concatStringsSep "\n" (map (layer: pathsToLayer layer.contents)
                                    groupedLayers));
 
-  customisationLayer = mkCustomisationLayer {
-    name = baseName;
-    contents = contentsEnv;
-    baseJson = writeText "empty.json" "{}";
-    inherit uid gid extraCommands;
+  # Create a symlink forest into all top-level store paths.
+  contentsEnv = symlinkJoin {
+    name = "bulk-layers";
+    paths = allContents.contents;
   };
+
+  # This customisation layer which contains the symlink forest
+  # required at container runtime is assembled with a simplified
+  # version of dockerTools.mkCustomisationLayer.
+  #
+  # No metadata creation (such as layer hashing) is required when
+  # serving images over the API.
+  customisationLayer = runCommand "customisation-layer.tar" {} ''
+    cp -r ${contentsEnv}/ ./layer
+    tar --transform='s|^\./||' -C layer --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 -cf $out .
+  '';
 
   # Inspect the returned bulk layers to determine which layers belong to the
   # image and how to serve them.
@@ -172,9 +175,7 @@ let
     buildInputs = [ coreutils findutils jq openssl ];
   } ''
       cat ${bulkLayers} | sort -t/ -k5 -n > layer-list
-      echo -n layer-list:
-      cat layer-list
-      echo ${customisationLayer}/layer.tar >> layer-list
+      echo ${customisationLayer} >> layer-list
 
       for layer in $(cat layer-list); do
         layerSha256=$(sha256sum $layer | cut -d ' ' -f1)
