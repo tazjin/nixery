@@ -102,10 +102,12 @@ func signingOptsFromEnv() *storage.SignedURLOptions {
 	}
 }
 
-func getConfig(key, desc string) string {
+func getConfig(key, desc, def string) string {
 	value := os.Getenv(key)
-	if value == "" {
+	if value == "" && def == "" {
 		log.Fatalln(desc + " must be specified")
+	} else if value == "" {
+		return def
 	}
 
 	return value
@@ -117,15 +119,17 @@ type Config struct {
 	Signing *storage.SignedURLOptions // Signing options to use for GCS URLs
 	Port    string                    // Port on which to launch HTTP server
 	Pkgs    *PkgSource                // Source for Nix package set
-	WebDir  string
+	Timeout string                    // Timeout for a single Nix builder (seconds)
+	WebDir  string                    // Directory with static web assets
 }
 
 func FromEnv() *Config {
 	return &Config{
-		Bucket:  getConfig("BUCKET", "GCS bucket for layer storage"),
-		Port:    getConfig("PORT", "HTTP port"),
+		Bucket:  getConfig("BUCKET", "GCS bucket for layer storage", ""),
+		Port:    getConfig("PORT", "HTTP port", ""),
 		Pkgs:    pkgSourceFromEnv(),
 		Signing: signingOptsFromEnv(),
-		WebDir:  getConfig("WEB_DIR", "Static web file dir"),
+		Timeout: getConfig("NIX_TIMEOUT", "Nix builder timeout", "60"),
+		WebDir:  getConfig("WEB_DIR", "Static web file dir", ""),
 	}
 }

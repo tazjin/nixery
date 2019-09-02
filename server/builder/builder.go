@@ -119,6 +119,7 @@ func BuildImage(ctx *context.Context, cfg *config.Config, cache *BuildCache, ima
 		}
 
 		args := []string{
+			"--timeout", cfg.Timeout,
 			"--argstr", "name", image.Name,
 			"--argstr", "packages", string(packages),
 		}
