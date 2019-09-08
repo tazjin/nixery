@@ -18,65 +18,12 @@
 package config
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 
 	"cloud.google.com/go/storage"
 )
-
-// pkgSource represents the source from which the Nix package set used
-// by Nixery is imported. Users configure the source by setting one of
-// the supported environment variables.
-type PkgSource struct {
-	srcType string
-	args    string
-}
-
-// Convert the package source into the representation required by Nix.
-func (p *PkgSource) Render(tag string) string {
-	// The 'git' source requires a tag to be present.
-	if p.srcType == "git" {
-		if tag == "latest" || tag == "" {
-			tag = "master"
-		}
-
-		return fmt.Sprintf("git!%s!%s", p.args, tag)
-	}
-
-	return fmt.Sprintf("%s!%s", p.srcType, p.args)
-}
-
-// Retrieve a package source from the environment. If no source is
-// specified, the Nix code will default to a recent NixOS channel.
-func pkgSourceFromEnv() *PkgSource {
-	if channel := os.Getenv("NIXERY_CHANNEL"); channel != "" {
-		log.Printf("Using Nix package set from Nix channel %q\n", channel)
-		return &PkgSource{
-			srcType: "nixpkgs",
-			args:    channel,
-		}
-	}
-
-	if git := os.Getenv("NIXERY_PKGS_REPO"); git != "" {
-		log.Printf("Using Nix package set from git repository at %q\n", git)
-		return &PkgSource{
-			srcType: "git",
-			args:    git,
-		}
-	}
-
-	if path := os.Getenv("NIXERY_PKGS_PATH"); path != "" {
-		log.Printf("Using Nix package set from path %q\n", path)
-		return &PkgSource{
-			srcType: "path",
-			args:    path,
-		}
-	}
-
-	return nil
-}
 
 // Load (optional) GCS bucket signing data from the GCS_SIGNING_KEY and
 // GCS_SIGNING_ACCOUNT envvars.
@@ -118,18 +65,23 @@ type Config struct {
 	Bucket  string                    // GCS bucket to cache & serve layers
 	Signing *storage.SignedURLOptions // Signing options to use for GCS URLs
 	Port    string                    // Port on which to launch HTTP server
-	Pkgs    *PkgSource                // Source for Nix package set
+	Pkgs    PkgSource                 // Source for Nix package set
 	Timeout string                    // Timeout for a single Nix builder (seconds)
 	WebDir  string                    // Directory with static web assets
 }
 
-func FromEnv() *Config {
+func FromEnv() (*Config, error) {
+	pkgs, err := pkgSourceFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		Bucket:  getConfig("BUCKET", "GCS bucket for layer storage", ""),
 		Port:    getConfig("PORT", "HTTP port", ""),
-		Pkgs:    pkgSourceFromEnv(),
+		Pkgs:    pkgs,
 		Signing: signingOptsFromEnv(),
 		Timeout: getConfig("NIX_TIMEOUT", "Nix builder timeout", "60"),
 		WebDir:  getConfig("WEB_DIR", "Static web file dir", ""),
-	}
+	}, nil
 }

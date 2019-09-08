@@ -190,7 +190,11 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	cfg := config.FromEnv()
+	cfg, err := config.FromEnv()
+	if err != nil {
+		log.Fatalln("Failed to load configuration", err)
+	}
+
 	ctx := context.Background()
 	bucket := prepareBucket(&ctx, cfg)
 	cache := builder.NewCache()
