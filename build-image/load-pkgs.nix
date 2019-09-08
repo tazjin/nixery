@@ -12,17 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Load a Nix package set from a source specified in one of the following
-# formats:
-#
-# 1. nixpkgs!$channel (e.g. nixpkgs!nixos-19.03)
-# 2. git!$repo!$rev (e.g. git!git@github.com:NixOS/nixpkgs.git!master)
-# 3. path!$path (e.g. path!/var/local/nixpkgs)
-#
-# '!' was chosen as the separator because `builtins.split` does not
-# support regex escapes and there are few other candidates. It
-# doesn't matter much because this is invoked by the server.
-{ pkgSource, args ? { } }:
+# Load a Nix package set from one of the supported source types
+# (nixpkgs, git, path).
+{ srcType, srcArgs, importArgs ? { } }:
 
 with builtins;
 let
@@ -32,42 +24,22 @@ let
     let
       url =
         "https://github.com/NixOS/nixpkgs-channels/archive/${channel}.tar.gz";
-    in import (fetchTarball url) args;
+    in import (fetchTarball url) importArgs;
 
   # If a git repository is requested, it is retrieved via
   # builtins.fetchGit which defaults to the git configuration of the
   # outside environment. This means that user-configured SSH
   # credentials etc. are going to work as expected.
-  fetchImportGit = url: rev:
-    let
-      # builtins.fetchGit needs to know whether 'rev' is a reference
-      # (e.g. a branch/tag) or a revision (i.e. a commit hash)
-      #
-      # Since this data is being extrapolated from the supplied image
-      # tag, we have to guess if we want to avoid specifying a format.
-      #
-      # There are some additional caveats around whether the default
-      # branch contains the specified revision, which need to be
-      # explained to users.
-      spec = if (stringLength rev) == 40 then {
-        inherit url rev;
-      } else {
-        inherit url;
-        ref = rev;
-      };
-    in import (fetchGit spec) args;
+  fetchImportGit = spec: import (fetchGit spec) importArgs;
 
   # No special handling is used for paths, so users are expected to pass one
   # that will work natively with Nix.
-  importPath = path: import (toPath path) args;
-
-  source = split "!" pkgSource;
-  sourceType = elemAt source 0;
-in if sourceType == "nixpkgs" then
-  fetchImportChannel (elemAt source 2)
-else if sourceType == "git" then
-  fetchImportGit (elemAt source 2) (elemAt source 4)
-else if sourceType == "path" then
-  importPath (elemAt source 2)
+  importPath = path: import (toPath path) importArgs;
+in if srcType == "nixpkgs" then
+  fetchImportChannel srcArgs
+else if srcType == "git" then
+  fetchImportGit (fromJSON srcArgs)
+else if srcType == "path" then
+  importPath srcArgs
 else
-  throw ("Invalid package set source specification: ${pkgSource}")
+  throw ("Invalid package set source specification: ${srcType} (${srcArgs})")

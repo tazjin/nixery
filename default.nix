@@ -28,7 +28,8 @@ rec {
 
   # Implementation of the image building & layering logic
   nixery-build-image = (import ./build-image {
-    pkgSource = "path!${<nixpkgs>}";
+    srcType = "path";
+    srcArgs = <nixpkgs>;
   }).wrapper;
 
   # Use mdBook to build a static asset page which Nixery can then

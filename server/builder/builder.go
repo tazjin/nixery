@@ -118,15 +118,16 @@ func BuildImage(ctx *context.Context, cfg *config.Config, cache *BuildCache, ima
 			return nil, err
 		}
 
+		srcType, srcArgs := cfg.Pkgs.Render(image.Tag)
+
 		args := []string{
 			"--timeout", cfg.Timeout,
 			"--argstr", "name", image.Name,
 			"--argstr", "packages", string(packages),
+			"--argstr", "srcType", srcType,
+			"--argstr", "srcArgs", srcArgs,
 		}
 
-		if cfg.Pkgs != nil {
-			args = append(args, "--argstr", "pkgSource", cfg.Pkgs.Render(image.Tag))
-		}
 		cmd := exec.Command("nixery-build-image", args...)
 
 		outpipe, err := cmd.StdoutPipe()
