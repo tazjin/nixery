@@ -14,26 +14,15 @@
 package builder
 
 import (
+	"github.com/google/nixery/config"
 	"sync"
-	"time"
 )
-
-// recencyThreshold is the amount of time that a manifest build will be cached
-// for. When using the channel mechanism for retrieving nixpkgs, Nix will
-// occasionally re-fetch the channel so things can in fact change while the
-// instance is running.
-const recencyThreshold = time.Duration(6) * time.Hour
-
-type manifestEntry struct {
-	built time.Time
-	path  string
-}
 
 type void struct{}
 
 type BuildCache struct {
 	mmtx   sync.RWMutex
-	mcache map[string]manifestEntry
+	mcache map[string]string
 
 	lmtx   sync.RWMutex
 	lcache map[string]void
@@ -41,7 +30,7 @@ type BuildCache struct {
 
 func NewCache() BuildCache {
 	return BuildCache{
-		mcache: make(map[string]manifestEntry),
+		mcache: make(map[string]string),
 		lcache: make(map[string]void),
 	}
 }
@@ -63,33 +52,33 @@ func (c *BuildCache) sawLayer(hash string) {
 	c.lcache[hash] = void{}
 }
 
-// Has this manifest been built already? If yes, we can reuse the
-// result given that the build happened recently enough.
-func (c *BuildCache) manifestFromCache(image *Image) (string, bool) {
-	c.mmtx.RLock()
+// Retrieve a cached manifest if the build is cacheable and it exists.
+func (c *BuildCache) manifestFromCache(src config.PkgSource, image *Image) (string, bool) {
+	key := src.CacheKey(image.Packages, image.Tag)
+	if key == "" {
+		return "", false
+	}
 
-	entry, ok := c.mcache[image.Name+image.Tag]
+	c.mmtx.RLock()
+	path, ok := c.mcache[key]
 	c.mmtx.RUnlock()
 
 	if !ok {
 		return "", false
 	}
 
-	if time.Since(entry.built) > recencyThreshold {
-		return "", false
-	}
-
-	return entry.path, true
+	return path, true
 }
 
-// Adds the result of a manifest build to the cache.
-func (c *BuildCache) cacheManifest(image *Image, path string) {
-	entry := manifestEntry{
-		built: time.Now(),
-		path:  path,
+// Adds the result of a manifest build to the cache, if the manifest
+// is considered cacheable.
+func (c *BuildCache) cacheManifest(src config.PkgSource, image *Image, path string) {
+	key := src.CacheKey(image.Packages, image.Tag)
+	if key == "" {
+		return
 	}
 
 	c.mmtx.Lock()
-	c.mcache[image.Name+image.Tag] = entry
+	c.mcache[key] = path
 	c.mmtx.Unlock()
 }
