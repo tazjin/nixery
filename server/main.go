@@ -125,7 +125,7 @@ type registryHandler struct {
 	cfg    *config.Config
 	ctx    *context.Context
 	bucket *storage.BucketHandle
-	cache  *builder.BuildCache
+	cache  *builder.LocalCache
 }
 
 func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

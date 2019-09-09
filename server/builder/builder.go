@@ -109,8 +109,8 @@ func convenienceNames(packages []string) []string {
 
 // Call out to Nix and request that an image be built. Nix will, upon success,
 // return a manifest for the container image.
-func BuildImage(ctx *context.Context, cfg *config.Config, cache *BuildCache, image *Image, bucket *storage.BucketHandle) (*BuildResult, error) {
-	resultFile, cached := cache.manifestFromCache(cfg.Pkgs, image)
+func BuildImage(ctx *context.Context, cfg *config.Config, cache *LocalCache, image *Image, bucket *storage.BucketHandle) (*BuildResult, error) {
+	resultFile, cached := manifestFromCache(ctx, bucket, cfg.Pkgs, cache, image)
 
 	if !cached {
 		packages, err := json.Marshal(image.Packages)
@@ -158,7 +158,7 @@ func BuildImage(ctx *context.Context, cfg *config.Config, cache *BuildCache, ima
 		log.Println("Finished Nix image build")
 
 		resultFile = strings.TrimSpace(string(stdout))
-		cache.cacheManifest(cfg.Pkgs, image, resultFile)
+		cacheManifest(ctx, bucket, cfg.Pkgs, cache, image, resultFile)
 	}
 
 	buildOutput, err := ioutil.ReadFile(resultFile)
