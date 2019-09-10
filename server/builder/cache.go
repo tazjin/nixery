@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"cloud.google.com/go/storage"
-	"github.com/google/nixery/config"
 )
 
 type void struct{}
@@ -83,12 +82,7 @@ func (c *LocalCache) localCacheManifest(key, path string) {
 
 // Retrieve a manifest from the cache(s). First the local cache is
 // checked, then the GCS-bucket cache.
-func manifestFromCache(ctx *context.Context, bucket *storage.BucketHandle, pkgs config.PkgSource, cache *LocalCache, image *Image) (string, bool) {
-	key := pkgs.CacheKey(image.Packages, image.Tag)
-	if key == "" {
-		return "", false
-	}
-
+func manifestFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string) (string, bool) {
 	path, cached := cache.manifestFromLocalCache(key)
 	if cached {
 		return path, true
@@ -118,18 +112,13 @@ func manifestFromCache(ctx *context.Context, bucket *storage.BucketHandle, pkgs 
 		log.Printf("Failed to read cached manifest for '%s': %s\n", key, err)
 	}
 
-	log.Printf("Retrieved manifest for '%s' (%s) from GCS\n", image.Name, key)
+	log.Printf("Retrieved manifest for sha1:%s from GCS\n", key)
 	cache.localCacheManifest(key, path)
 
 	return path, true
 }
 
-func cacheManifest(ctx *context.Context, bucket *storage.BucketHandle, pkgs config.PkgSource, cache *LocalCache, image *Image, path string) {
-	key := pkgs.CacheKey(image.Packages, image.Tag)
-	if key == "" {
-		return
-	}
-
+func cacheManifest(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key, path string) {
 	cache.localCacheManifest(key, path)
 
 	obj := bucket.Object("manifests/" + key)
@@ -137,7 +126,7 @@ func cacheManifest(ctx *context.Context, bucket *storage.BucketHandle, pkgs conf
 
 	f, err := os.Open(path)
 	if err != nil {
-		log.Printf("failed to open '%s' manifest for cache upload: %s\n", image.Name, err)
+		log.Printf("failed to open manifest sha1:%s for cache upload: %s\n", key, err)
 		return
 	}
 	defer f.Close()
