@@ -21,24 +21,6 @@
 { fetchFromGitHub, mdbook, runCommand, rustPlatform }:
 
 let
-  # nixpkgs currently has an old version of mdBook. A new version is
-  # built here, but eventually the update will be upstreamed
-  # (nixpkgs#65890)
-  mdbook = rustPlatform.buildRustPackage rec {
-    name = "mdbook-${version}";
-    version = "0.3.1";
-    doCheck = false;
-
-    src = fetchFromGitHub {
-      owner = "rust-lang-nursery";
-      repo = "mdBook";
-      rev = "v${version}";
-      sha256 = "0py69267jbs6b7zw191hcs011cm1v58jz8mglqx3ajkffdfl3ghw";
-    };
-
-    cargoSha256 = "0qwhc42a86jpvjcaysmfcw8kmwa150lmz01flmlg74g6qnimff5m";
-  };
-
   nix-1p = fetchFromGitHub {
     owner = "tazjin";
     repo = "nix-1p";
