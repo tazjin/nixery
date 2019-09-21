@@ -35,6 +35,9 @@
   # layers. To allow for some extensibility (via additional layers),
   # the default here is set to something a little less than that.
   maxLayers ? 96,
+  # Popularity data for layer solving is fetched from the URL passed
+  # in here.
+  popularityUrl ? "https://storage.googleapis.com/nixery-layers/popularity/popularity-19.03.173490.5271f8dddc0.json",
 
   ...
 }:
@@ -101,10 +104,7 @@ let
         fetched = (map (deepFetch pkgs) (fromJSON packages));
     in foldl' splitter init fetched;
 
-  popularity = builtins.fetchurl {
-    url = "https://storage.googleapis.com/nixery-layers/popularity/nixos-19.03-20190812.json";
-    sha256 = "16sxd49vqqg2nrhwynm36ba6bc2yff5cd5hf83wi0hanw5sx3svk";
-  };
+  popularity = builtins.fetchurl popularityUrl;
 
   # Before actually creating any image layers, the store paths that need to be
   # included in the image must be sorted into the layers that they should go
