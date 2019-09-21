@@ -59,8 +59,9 @@ rec {
     # issues in containers.
     nixery-launch-script = writeShellScriptBin "nixery" ''
       set -e
+      export PATH=${coreutils}/bin:$PATH
       export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
-      mkdir /tmp
+      mkdir -p /tmp
 
       # Create the build user/group required by Nix
       echo 'nixbld:x:30000:nixbld' >> /etc/group
