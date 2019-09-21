@@ -134,6 +134,10 @@ func BuildImage(ctx *context.Context, cfg *config.Config, cache *LocalCache, ima
 			"--argstr", "srcArgs", srcArgs,
 		}
 
+		if cfg.PopUrl != "" {
+			args = append(args, "--argstr", "popularityUrl", cfg.PopUrl)
+		}
+
 		cmd := exec.Command("nixery-build-image", args...)
 
 		outpipe, err := cmd.StdoutPipe()

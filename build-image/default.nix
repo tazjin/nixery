@@ -22,7 +22,7 @@
   # all arguments of build-image.nix.
 , srcType ? "nixpkgs"
 , srcArgs ? "nixos-19.03"
-, tag ? null, name ? null, packages ? null, maxLayers ? null
+, tag ? null, name ? null, packages ? null, maxLayers ? null, popularityUrl ? null
 }@args:
 
 let pkgs = import ./load-pkgs.nix { inherit srcType srcArgs; };
