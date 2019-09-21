@@ -133,11 +133,11 @@ let
   # their contents.
   pathsToLayer = paths: runCommand "layer.tar" {
   } ''
-    tar --no-recursion -rf "$out" \
+    tar --no-recursion -Prf "$out" \
         --mtime="@$SOURCE_DATE_EPOCH" \
         --owner=0 --group=0 /nix /nix/store
 
-    tar -rpf "$out" --hard-dereference --sort=name \
+    tar -Prpf "$out" --hard-dereference --sort=name \
         --mtime="@$SOURCE_DATE_EPOCH" \
         --owner=0 --group=0 ${lib.concatStringsSep " " paths}
   '';
