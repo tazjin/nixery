@@ -18,6 +18,7 @@
 package builder
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -107,6 +108,15 @@ func convenienceNames(packages []string) []string {
 	return packages
 }
 
+// logNix logs each output line from Nix. It runs in a goroutine per
+// output channel that should be live-logged.
+func logNix(name string, r io.ReadCloser) {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		log.Printf("\x1b[31m[nix - %s]\x1b[39m %s\n", name, scanner.Text())
+	}
+}
+
 // Call out to Nix and request that an image be built. Nix will, upon success,
 // return a manifest for the container image.
 func BuildImage(ctx *context.Context, cfg *config.Config, cache *LocalCache, image *Image, bucket *storage.BucketHandle) (*BuildResult, error) {
@@ -149,6 +159,7 @@ func BuildImage(ctx *context.Context, cfg *config.Config, cache *LocalCache, ima
 		if err != nil {
 			return nil, err
 		}
+		go logNix(image.Name, errpipe)
 
 		if err = cmd.Start(); err != nil {
 			log.Println("Error starting nix-build:", err)
@@ -157,11 +168,9 @@ func BuildImage(ctx *context.Context, cfg *config.Config, cache *LocalCache, ima
 		log.Printf("Started Nix image build for '%s'", image.Name)
 
 		stdout, _ := ioutil.ReadAll(outpipe)
-		stderr, _ := ioutil.ReadAll(errpipe)
 
 		if err = cmd.Wait(); err != nil {
-			// TODO(tazjin): Propagate errors upwards in a usable format.
-			log.Printf("nix-build execution error: %s\nstdout: %s\nstderr: %s\n", err, stdout, stderr)
+			log.Printf("nix-build execution error: %s\nstdout: %s\n", err, stdout)
 			return nil, err
 		}
 
