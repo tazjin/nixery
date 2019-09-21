@@ -44,6 +44,7 @@ rec {
   # are installing Nixery directly.
   nixery-bin = writeShellScriptBin "nixery" ''
     export WEB_DIR="${nixery-book}"
+    export PATH="${nixery-build-image}/bin:$PATH"
     exec ${nixery-server}/bin/nixery
   '';
 
