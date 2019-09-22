@@ -179,7 +179,7 @@ let
         # The server application compares binary MD5 hashes and expects base64
         # encoding instead of hex.
         layerMd5=$(openssl dgst -md5 -binary $layer | openssl enc -base64)
-        layerSize=$(wc -c $layer | cut -d ' ' -f1)
+        layerSize=$(stat --printf '%s' $layer)
 
         jq -n -c --arg sha256 $layerSha256 --arg md5 $layerMd5 --arg size $layerSize --arg path $layer \
           '{ size: ($size | tonumber), sha256: $sha256, md5: $md5, path: $path }' >> fs-layers
@@ -203,7 +203,7 @@ let
   configMetadata = fromJSON (readFile (runCommand "config-meta" {
     buildInputs = with pkgs; [ jq openssl ];
   } ''
-    size=$(wc -c ${configJson} | cut -d ' ' -f1)
+    size=$(stat --printf '%s' ${configJson})
     sha256=$(sha256sum ${configJson} | cut -d ' ' -f1)
     md5=$(openssl dgst -md5 -binary ${configJson} | openssl enc -base64)
     jq -n -c --arg size $size --arg sha256 $sha256 --arg md5 $md5 \
