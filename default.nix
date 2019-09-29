@@ -17,11 +17,7 @@
 
 with pkgs;
 
-let buildImage = import ./build-image {
-  srcType = "path";
-  srcArgs = <nixpkgs>;
-};
-in rec {
+rec {
   # Go implementation of the Nixery server which implements the
   # container registry interface.
   #
@@ -30,9 +26,8 @@ in rec {
   # data dependencies.
   nixery-server = callPackage ./server { };
 
-  # Implementation of the image building & layering logic
-  nixery-build-image = buildImage.wrapper;
-  nixery-group-layers = buildImage.groupLayers;
+  # Implementation of the Nix image building logic
+  nixery-build-image = import ./build-image { inherit pkgs; };
 
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
