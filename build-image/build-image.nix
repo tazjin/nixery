@@ -26,6 +26,8 @@
   srcType ? "nixpkgs",
   srcArgs ? "nixos-19.03",
   importArgs ? { },
+  # Path to load-pkgs.nix
+  loadPkgs ? ./load-pkgs.nix,
   # Packages to install by name (which must refer to top-level attributes of
   # nixpkgs). This is passed in as a JSON-array in string form.
   packages ? "[]"
@@ -43,7 +45,7 @@ let
 
   inherit (pkgs) lib runCommand writeText;
 
-  pkgs = import ./load-pkgs.nix { inherit srcType srcArgs importArgs; };
+  pkgs = import loadPkgs { inherit srcType srcArgs importArgs; };
 
   # deepFetch traverses the top-level Nix package set to retrieve an item via a
   # path specified in string form.
