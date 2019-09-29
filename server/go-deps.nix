@@ -108,4 +108,13 @@
       sha256 = "05wig23l2sil3bfdv19gq62sya7hsabqj9l8pzr1sm57qsvj218d";
     };
   }
+  {
+    goPackagePath = "gonum.org/v1/gonum";
+    fetch = {
+      type = "git";
+      url = "https://github.com/gonum/gonum";
+      rev = "ced62fe5104b907b6c16cb7e575c17b2e62ceddd";
+      sha256 = "1b7q6haabnp53igpmvr6a2414yralhbrldixx4kbxxg1apy8jdjg";
+    };
+  }
 ]
