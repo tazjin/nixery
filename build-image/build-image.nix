@@ -12,43 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file contains a modified version of dockerTools.buildImage that, instead
-# of outputting a single tarball which can be imported into a running Docker
-# daemon, builds a manifest file that can be used for serving the image over a
-# registry API.
+# This file contains a derivation that outputs structured information
+# about the runtime dependencies of an image with a given set of
+# packages. This is used by Nixery to determine the layer grouping and
+# assemble each layer.
+#
+# In addition it creates and outputs a meta-layer with the symlink
+# structure required for using the image together with the individual
+# package layers.
 
 {
-  # Package set to used (this will usually be loaded by load-pkgs.nix)
-  pkgs,
-  # Image Name
-  name,
-  # Image tag, the Nix output's hash will be used if null
-  tag ? null,
-  # Tool used to determine layer grouping
-  groupLayers,
-  # Files to put on the image (a nix store path or list of paths).
-  contents ? [],
+  # Description of the package set to be used (will be loaded by load-pkgs.nix)
+  srcType ? "nixpkgs",
+  srcArgs ? "nixos-19.03",
+  importArgs ? { },
   # Packages to install by name (which must refer to top-level attributes of
   # nixpkgs). This is passed in as a JSON-array in string form.
-  packages ? "[]",
-  # Docker's modern image storage mechanisms have a maximum of 125
-  # layers. To allow for some extensibility (via additional layers),
-  # the default here is set to something a little less than that.
-  maxLayers ? 96,
-  # Popularity data for layer solving is fetched from the URL passed
-  # in here.
-  popularityUrl ? "https://storage.googleapis.com/nixery-layers/popularity/popularity-19.03.173490.5271f8dddc0.json",
-
-  ...
+  packages ? "[]"
 }:
 
-with builtins;
-
 let
+  inherit (builtins)
+    foldl'
+    fromJSON
+    hasAttr
+    length
+    readFile
+    toFile
+    toJSON;
+
   inherit (pkgs) lib runCommand writeText;
 
-  tarLayer = "application/vnd.docker.image.rootfs.diff.tar";
-  baseName = baseNameOf name;
+  pkgs = import ./load-pkgs.nix { inherit srcType srcArgs importArgs; };
 
   # deepFetch traverses the top-level Nix package set to retrieve an item via a
   # path specified in string form.
@@ -87,11 +82,11 @@ let
         fetchLower = attrByPath caseAmendedPath err s;
     in attrByPath path fetchLower s;
 
-  # allContents is the combination of all derivations and store paths passed in
-  # directly, as well as packages referred to by name.
+  # allContents contains all packages successfully retrieved by name
+  # from the package set, as well as any errors encountered while
+  # attempting to fetch a package.
   #
-  # It accumulates potential errors about packages that could not be found to
-  # return this information back to the server.
+  # Accumulated error information is returned back to the server.
   allContents =
     # Folds over the results of 'deepFetch' on all requested packages to
     # separate them into errors and content. This allows the program to
@@ -100,157 +95,57 @@ let
           if hasAttr "error" res
           then attrs // { errors = attrs.errors ++ [ res ]; }
           else attrs // { contents = attrs.contents ++ [ res ]; };
-        init = { inherit contents; errors = []; };
+        init = { contents = []; errors = []; };
         fetched = (map (deepFetch pkgs) (fromJSON packages));
     in foldl' splitter init fetched;
 
-  popularity = builtins.fetchurl popularityUrl;
-
-  # Before actually creating any image layers, the store paths that need to be
-  # included in the image must be sorted into the layers that they should go
-  # into.
+  # Contains the export references graph of all retrieved packages,
+  # which has information about all runtime dependencies of the image.
   #
-  # How contents are allocated to each layer is decided by the `group-layers.go`
-  # program. The mechanism used is described at the top of the program's source
-  # code, or alternatively in the layering design document:
-  #
-  #   https://storage.googleapis.com/nixdoc/nixery-layers.html
-  #
-  # To invoke the program, a graph of all runtime references is created via
-  # Nix's exportReferencesGraph feature - the resulting layers are read back
-  # into Nix using import-from-derivation.
-  groupedLayers = fromJSON (readFile (runCommand "grouped-layers.json" {
+  # This is used by Nixery to group closures into image layers.
+  runtimeGraph = runCommand "runtime-graph.json" {
     __structuredAttrs = true;
     exportReferencesGraph.graph = allContents.contents;
-    PATH = "${groupLayers}/bin";
+    PATH = "${pkgs.coreutils}/bin";
     builder = toFile "builder" ''
       . .attrs.sh
-      group-layers --budget ${toString (maxLayers - 1)} --pop ${popularity} --out ''${outputs[out]}
+      cp .attrs.json ''${outputs[out]}
     '';
-  } ""));
+  } "";
 
-  # Given a list of store paths, create an image layer tarball with
-  # their contents.
-  pathsToLayer = paths: runCommand "layer.tar" {
-  } ''
-    tar --no-recursion -Prf "$out" \
-        --mtime="@$SOURCE_DATE_EPOCH" \
-        --owner=0 --group=0 /nix /nix/store
-
-    tar -Prpf "$out" --hard-dereference --sort=name \
-        --mtime="@$SOURCE_DATE_EPOCH" \
-        --owner=0 --group=0 ${lib.concatStringsSep " " paths}
-  '';
-
-  bulkLayers = writeText "bulk-layers"
-  (lib.concatStringsSep "\n" (map (layer: pathsToLayer layer.contents)
-                                   groupedLayers));
-
-  # Create a symlink forest into all top-level store paths.
+  # Create a symlink forest into all top-level store paths of the
+  # image contents.
   contentsEnv = pkgs.symlinkJoin {
     name = "bulk-layers";
     paths = allContents.contents;
   };
 
-  # This customisation layer which contains the symlink forest
-  # required at container runtime is assembled with a simplified
-  # version of dockerTools.mkCustomisationLayer.
-  #
-  # No metadata creation (such as layer hashing) is required when
-  # serving images over the API.
-  customisationLayer = runCommand "customisation-layer.tar" {} ''
+  # Image layer that contains the symlink forest created above. This
+  # must be included in the image to ensure that the filesystem has a
+  # useful layout at runtime.
+  symlinkLayer = runCommand "symlink-layer.tar" {} ''
     cp -r ${contentsEnv}/ ./layer
     tar --transform='s|^\./||' -C layer --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 -cf $out .
   '';
 
-  # Inspect the returned bulk layers to determine which layers belong to the
-  # image and how to serve them.
-  #
-  # This computes both an MD5 and a SHA256 hash of each layer, which are used
-  # for different purposes. See the registry server implementation for details.
-  allLayersJson = runCommand "fs-layer-list.json" {
+  # Metadata about the symlink layer which is required for serving it.
+  # Two different hashes are computed for different usages (inclusion
+  # in manifest vs. content-checking in the layer cache).
+  symlinkLayerMeta = fromJSON (readFile (runCommand "symlink-layer-meta.json" {
     buildInputs = with pkgs; [ coreutils jq openssl ];
-  } ''
-      cat ${bulkLayers} | sort -t/ -k5 -n > layer-list
-      echo ${customisationLayer} >> layer-list
+  }''
+    layerSha256=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
+    layerMd5=$(openssl dgst -md5 -binary ${symlinkLayer} | openssl enc -base64)
+    layerSize=$(stat --printf '%s' ${symlinkLayer})
 
-      for layer in $(cat layer-list); do
-        layerSha256=$(sha256sum $layer | cut -d ' ' -f1)
-        # The server application compares binary MD5 hashes and expects base64
-        # encoding instead of hex.
-        layerMd5=$(openssl dgst -md5 -binary $layer | openssl enc -base64)
-        layerSize=$(stat --printf '%s' $layer)
-
-        jq -n -c --arg sha256 $layerSha256 --arg md5 $layerMd5 --arg size $layerSize --arg path $layer \
-          '{ size: ($size | tonumber), sha256: $sha256, md5: $md5, path: $path }' >> fs-layers
-      done
-
-      cat fs-layers | jq -s -c '.' > $out
-  '';
-  allLayers = fromJSON (readFile allLayersJson);
-
-  # Image configuration corresponding to the OCI specification for the file type
-  # 'application/vnd.oci.image.config.v1+json'
-  config = {
-    architecture = "amd64";
-    os = "linux";
-    rootfs.type = "layers";
-    rootfs.diff_ids = map (layer: "sha256:${layer.sha256}") allLayers;
-    # Required to let Kubernetes import Nixery images
-    config = {};
-  };
-  configJson = writeText "${baseName}-config.json" (toJSON config);
-  configMetadata = fromJSON (readFile (runCommand "config-meta" {
-    buildInputs = with pkgs; [ jq openssl ];
-  } ''
-    size=$(stat --printf '%s' ${configJson})
-    sha256=$(sha256sum ${configJson} | cut -d ' ' -f1)
-    md5=$(openssl dgst -md5 -binary ${configJson} | openssl enc -base64)
-    jq -n -c --arg size $size --arg sha256 $sha256 --arg md5 $md5 \
-      '{ size: ($size | tonumber), sha256: $sha256, md5: $md5 }' \
-      >> $out
+    jq -n -c --arg sha256 $layerSha256 --arg md5 $layerMd5 --arg size $layerSize --arg path ${symlinkLayer} \
+      '{ size: ($size | tonumber), sha256: $sha256, md5: $md5, path: $path }' >> $out
   ''));
 
-  # Corresponds to the manifest JSON expected by the Registry API.
-  #
-  # This is Docker's "Image Manifest V2, Schema 2":
-  #   https://docs.docker.com/registry/spec/manifest-v2-2/
-  manifest = {
-    schemaVersion = 2;
-    mediaType = "application/vnd.docker.distribution.manifest.v2+json";
-
-    config = {
-      mediaType = "application/vnd.docker.container.image.v1+json";
-      size = configMetadata.size;
-      digest = "sha256:${configMetadata.sha256}";
-    };
-
-    layers = map (layer: {
-      mediaType = tarLayer;
-      digest = "sha256:${layer.sha256}";
-      size = layer.size;
-    }) allLayers;
-  };
-
-  # This structure maps each layer digest to the actual tarball that will need
-  # to be served. It is used by the controller to cache the paths during a pull.
-  layerLocations = {
-      "${configMetadata.sha256}" = {
-        path = configJson;
-        md5 = configMetadata.md5;
-      };
-    } // (listToAttrs (map (layer: {
-      name  = "${layer.sha256}";
-      value = {
-        path = layer.path;
-        md5 = layer.md5;
-      };
-    }) allLayers));
-
-  # Final output structure returned to the controller in the case of a
-  # successful build.
-  manifestOutput = {
-    inherit manifest layerLocations;
+  # Final output structure returned to Nixery if the build succeeded
+  buildOutput = {
+    runtimeGraph = fromJSON (readFile runtimeGraph);
+    symlinkLayer = symlinkLayerMeta;
   };
 
   # Output structure returned if errors occured during the build. Currently the
@@ -259,7 +154,7 @@ let
     error = "not_found";
     pkgs = map (err: err.pkg) allContents.errors;
   };
-in writeText "manifest-output.json" (if (length allContents.errors) == 0
-  then toJSON manifestOutput
+in writeText "build-output.json" (if (length allContents.errors) == 0
+  then toJSON buildOutput
   else toJSON errorOutput
 )
