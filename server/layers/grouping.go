@@ -1,6 +1,6 @@
-// This program reads an export reference graph (i.e. a graph representing the
-// runtime dependencies of a set of derivations) created by Nix and groups them
-// in a way that is likely to match the grouping for other derivation sets with
+// This package reads an export reference graph (i.e. a graph representing the
+// runtime dependencies of a set of derivations) created by Nix and groups it in
+// a way that is likely to match the grouping for other derivation sets with
 // overlapping dependencies.
 //
 // This is used to determine which derivations to include in which layers of a
@@ -9,8 +9,8 @@
 // # Inputs
 //
 // * a graph of Nix runtime dependencies, generated via exportReferenceGraph
-// * a file containing absolute popularity values of packages in the
-//   Nix package set (in the form of a direct reference count)
+// * popularity values of each package in the Nix package set (in the form of a
+//   direct reference count)
 // * a maximum number of layers to allocate for the image (the "layer budget")
 //
 // # Algorithm
@@ -103,9 +103,6 @@
 package layers
 
 import (
-	"encoding/json"
-	"flag"
-	"io/ioutil"
 	"log"
 	"regexp"
 	"sort"
@@ -114,9 +111,11 @@ import (
 	"gonum.org/v1/gonum/graph/simple"
 )
 
-// closureGraph represents the structured attributes Nix outputs when asking it
-// for the exportReferencesGraph of a list of derivations.
-type exportReferences struct {
+// RuntimeGraph represents structured information from Nix about the runtime
+// dependencies of a derivation.
+//
+// This is generated in Nix by using the exportReferencesGraph feature.
+type RuntimeGraph struct {
 	References struct {
 		Graph []string `json:"graph"`
 	} `json:"exportReferencesGraph"`
@@ -135,14 +134,14 @@ type exportReferences struct {
 // of the nixpkgs tree.
 type Popularity = map[string]int
 
-// layer represents the data returned for each layer that Nix should
+// Layer represents the data returned for each layer that Nix should
 // build for the container image.
-type layer struct {
+type Layer struct {
 	Contents    []string `json:"contents"`
 	mergeRating uint64
 }
 
-func (a layer) merge(b layer) layer {
+func (a Layer) merge(b Layer) Layer {
 	a.Contents = append(a.Contents, b.Contents...)
 	a.mergeRating += b.mergeRating
 	return a
@@ -209,7 +208,7 @@ func insertEdges(graph *simple.DirectedGraph, cmap *map[string]*closure, node *c
 }
 
 // Create a graph structure from the references supplied by Nix.
-func buildGraph(refs *exportReferences, pop *Popularity) *simple.DirectedGraph {
+func buildGraph(refs *RuntimeGraph, pop *Popularity) *simple.DirectedGraph {
 	cmap := make(map[string]*closure)
 	graph := simple.NewDirectedGraph()
 
@@ -259,7 +258,7 @@ func buildGraph(refs *exportReferences, pop *Popularity) *simple.DirectedGraph {
 // Extracts a subgraph starting at the specified root from the
 // dominator tree. The subgraph is converted into a flat list of
 // layers, each containing the store paths and merge rating.
-func groupLayer(dt *flow.DominatorTree, root *closure) layer {
+func groupLayer(dt *flow.DominatorTree, root *closure) Layer {
 	size := root.Size
 	contents := []string{root.Path}
 	children := dt.DominatedBy(root.ID())
@@ -273,7 +272,7 @@ func groupLayer(dt *flow.DominatorTree, root *closure) layer {
 		children = append(children, dt.DominatedBy(child.ID())...)
 	}
 
-	return layer{
+	return Layer{
 		Contents: contents,
 		// TODO(tazjin): The point of this is to factor in
 		// both the size and the popularity when making merge
@@ -288,10 +287,10 @@ func groupLayer(dt *flow.DominatorTree, root *closure) layer {
 //
 // Layers are merged together until they fit into the layer budget,
 // based on their merge rating.
-func dominate(budget int, graph *simple.DirectedGraph) []layer {
+func dominate(budget int, graph *simple.DirectedGraph) []Layer {
 	dt := flow.Dominators(graph.Node(0), graph)
 
-	var layers []layer
+	var layers []Layer
 	for _, n := range dt.DominatedBy(dt.Root().ID()) {
 		layers = append(layers, groupLayer(&dt, n.(*closure)))
 	}
@@ -313,40 +312,10 @@ func dominate(budget int, graph *simple.DirectedGraph) []layer {
 	return layers
 }
 
-func main() {
-	graphFile := flag.String("graph", ".attrs.json", "Input file containing graph")
-	popFile := flag.String("pop", "popularity.json", "Package popularity data")
-	outFile := flag.String("out", "layers.json", "File to write layers to")
-	layerBudget := flag.Int("budget", 94, "Total layer budget available")
-	flag.Parse()
-
-	// Parse graph data
-	file, err := ioutil.ReadFile(*graphFile)
-	if err != nil {
-		log.Fatalf("Failed to load input: %s\n", err)
-	}
-
-	var refs exportReferences
-	err = json.Unmarshal(file, &refs)
-	if err != nil {
-		log.Fatalf("Failed to deserialise input: %s\n", err)
-	}
-
-	// Parse popularity data
-	popBytes, err := ioutil.ReadFile(*popFile)
-	if err != nil {
-		log.Fatalf("Failed to load input: %s\n", err)
-	}
-
-	var pop Popularity
-	err = json.Unmarshal(popBytes, &pop)
-	if err != nil {
-		log.Fatalf("Failed to deserialise input: %s\n", err)
-	}
-
-	graph := buildGraph(&refs, &pop)
-	layers := dominate(*layerBudget, graph)
-
-	j, _ := json.Marshal(layers)
-	ioutil.WriteFile(*outFile, j, 0644)
+// GroupLayers applies the algorithm described above the its input and returns a
+// list of layers, each consisting of a list of Nix store paths that it should
+// contain.
+func GroupLayers(refs *RuntimeGraph, pop *Popularity, budget int) []Layer {
+	graph := buildGraph(refs, pop)
+	return dominate(budget, graph)
 }
