@@ -60,7 +60,7 @@ func getConfig(key, desc, def string) string {
 	return value
 }
 
-// config holds the Nixery configuration options.
+// Config holds the Nixery configuration options.
 type Config struct {
 	Bucket  string                    // GCS bucket to cache & serve layers
 	Signing *storage.SignedURLOptions // Signing options to use for GCS URLs
