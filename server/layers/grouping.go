@@ -103,9 +103,12 @@
 package layers
 
 import (
+	"crypto/sha1"
+	"fmt"
 	"log"
 	"regexp"
 	"sort"
+	"strings"
 
 	"gonum.org/v1/gonum/graph/flow"
 	"gonum.org/v1/gonum/graph/simple"
@@ -139,6 +142,13 @@ type Popularity = map[string]int
 type Layer struct {
 	Contents    []string `json:"contents"`
 	mergeRating uint64
+}
+
+// Hash the contents of a layer to create a deterministic identifier that can be
+// used for caching.
+func (l *Layer) Hash() string {
+	sum := sha1.Sum([]byte(strings.Join(l.Contents, ":")))
+	return fmt.Sprintf("%x", sum)
 }
 
 func (a Layer) merge(b Layer) Layer {
@@ -271,6 +281,9 @@ func groupLayer(dt *flow.DominatorTree, root *closure) Layer {
 		contents = append(contents, child.Path)
 		children = append(children, dt.DominatedBy(child.ID())...)
 	}
+
+	// Contents are sorted to ensure that hashing is consistent
+	sort.Strings(contents)
 
 	return Layer{
 		Contents: contents,
