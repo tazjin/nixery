@@ -122,10 +122,8 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 }
 
 type registryHandler struct {
-	cfg    *config.Config
-	ctx    *context.Context
-	bucket *storage.BucketHandle
-	cache  *builder.LocalCache
+	ctx   *context.Context
+	state *builder.State
 }
 
 func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +139,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		imageTag := manifestMatches[2]
 		log.Printf("Requesting manifest for image %q at tag %q", imageName, imageTag)
 		image := builder.ImageFromName(imageName, imageTag)
-		buildResult, err := builder.BuildImage(h.ctx, h.cfg, h.cache, &image, h.bucket)
+		buildResult, err := builder.BuildImage(h.ctx, h.state, &image)
 
 		if err != nil {
 			writeError(w, 500, "UNKNOWN", "image build failure")
@@ -172,7 +170,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
 	if len(layerMatches) == 3 {
 		digest := layerMatches[2]
-		url, err := constructLayerUrl(h.cfg, digest)
+		url, err := constructLayerUrl(&h.state.Cfg, digest)
 
 		if err != nil {
 			log.Printf("Failed to sign GCS URL: %s\n", err)
@@ -197,16 +195,14 @@ func main() {
 
 	ctx := context.Background()
 	bucket := prepareBucket(&ctx, cfg)
-	cache := builder.NewCache()
+	state := builder.NewState(bucket, *cfg)
 
 	log.Printf("Starting Nixery on port %s\n", cfg.Port)
 
 	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{
-		cfg:    cfg,
-		ctx:    &ctx,
-		bucket: bucket,
-		cache:  &cache,
+		ctx:   &ctx,
+		state: &state,
 	})
 
 	// All other roots are served by the static file server.
