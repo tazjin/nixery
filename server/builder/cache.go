@@ -14,7 +14,9 @@
 package builder
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"os"
@@ -25,14 +27,25 @@ import (
 
 type void struct{}
 
+type Build struct {
+	SHA256 string `json:"sha256"`
+	MD5    string `json:"md5"`
+}
+
 // LocalCache implements the structure used for local caching of
 // manifests and layer uploads.
 type LocalCache struct {
+	// Manifest cache
 	mmtx   sync.RWMutex
 	mcache map[string]string
 
+	// Layer (tarball) cache
 	lmtx   sync.RWMutex
 	lcache map[string]void
+
+	// Layer (build) cache
+	bmtx   sync.RWMutex
+	bcache map[string]Build
 }
 
 func NewCache() LocalCache {
@@ -80,6 +93,22 @@ func (c *LocalCache) localCacheManifest(key, path string) {
 	c.mmtx.Unlock()
 }
 
+// Retrieve a cached build from the local cache.
+func (c *LocalCache) buildFromLocalCache(key string) (*Build, bool) {
+	c.bmtx.RLock()
+	b, ok := c.bcache[key]
+	c.bmtx.RUnlock()
+
+	return &b, ok
+}
+
+// Add a build result to the local cache.
+func (c *LocalCache) localCacheBuild(key string, b Build) {
+	c.bmtx.Lock()
+	c.bcache[key] = b
+	c.bmtx.Unlock()
+}
+
 // Retrieve a manifest from the cache(s). First the local cache is
 // checked, then the GCS-bucket cache.
 func manifestFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string) (string, bool) {
@@ -118,6 +147,7 @@ func manifestFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.
 	return path, true
 }
 
+// Add a manifest to the bucket & local caches
 func cacheManifest(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key, path string) {
 	cache.localCacheManifest(key, path)
 
@@ -143,4 +173,60 @@ func cacheManifest(ctx *context.Context, cache *LocalCache, bucket *storage.Buck
 	}
 
 	log.Printf("Cached manifest sha1:%s (%v bytes written)\n", key, size)
+}
+
+// Retrieve a build from the cache, first checking the local cache
+// followed by the bucket cache.
+func buildFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string) (*Build, bool) {
+	build, cached := cache.buildFromLocalCache(key)
+	if cached {
+		return build, true
+	}
+
+	obj := bucket.Object("builds/" + key)
+	_, err := obj.Attrs(*ctx)
+	if err != nil {
+		return nil, false
+	}
+
+	r, err := obj.NewReader(*ctx)
+	if err != nil {
+		log.Printf("Failed to retrieve build '%s' from cache: %s\n", key, err)
+		return nil, false
+	}
+	defer r.Close()
+
+	jb := bytes.NewBuffer([]byte{})
+	_, err = io.Copy(jb, r)
+	if err != nil {
+		log.Printf("Failed to read build '%s' from cache: %s\n", key, err)
+		return nil, false
+	}
+
+	var b Build
+	err = json.Unmarshal(jb.Bytes(), &build)
+	if err != nil {
+		log.Printf("Failed to unmarshal build '%s' from cache: %s\n", key, err)
+		return nil, false
+	}
+
+	return &b, true
+}
+
+func cacheBuild(ctx context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string, build Build) {
+	cache.localCacheBuild(key, build)
+
+	obj := bucket.Object("builds/" + key)
+
+	j, _ := json.Marshal(&build)
+
+	w := obj.NewWriter(ctx)
+
+	size, err := io.Copy(w, bytes.NewReader(j))
+	if err != nil {
+		log.Printf("failed to cache build '%s': %s\n", key, err)
+		return
+	}
+
+	log.Printf("cached build '%s' (%v bytes written)\n", key, size)
 }
