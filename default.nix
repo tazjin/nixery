@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 { pkgs ? import <nixpkgs> { }
 , preLaunch ? ""
 , extraPackages ? [] }:
 
 with pkgs;
 
-rec {
+let builders = import ./build-image { inherit pkgs; };
+in rec {
   # Go implementation of the Nixery server which implements the
   # container registry interface.
   #
@@ -27,7 +29,8 @@ rec {
   nixery-server = callPackage ./server { };
 
   # Implementation of the Nix image building logic
-  nixery-build-image = import ./build-image { inherit pkgs; };
+  nixery-build-image = builders.build-image;
+  nixery-build-layers = builders.build-layers;
 
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
