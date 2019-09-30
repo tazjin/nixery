@@ -328,7 +328,7 @@ func dominate(budget int, graph *simple.DirectedGraph) []Layer {
 // GroupLayers applies the algorithm described above the its input and returns a
 // list of layers, each consisting of a list of Nix store paths that it should
 // contain.
-func GroupLayers(refs *RuntimeGraph, pop *Popularity, budget int) []Layer {
+func Group(refs *RuntimeGraph, pop *Popularity, budget int) []Layer {
 	graph := buildGraph(refs, pop)
 	return dominate(budget, graph)
 }
