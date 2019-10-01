@@ -35,8 +35,8 @@ import (
 	"sort"
 	"strings"
 
-	"cloud.google.com/go/storage"
 	"github.com/google/nixery/layers"
+	"github.com/google/nixery/manifest"
 	"golang.org/x/oauth2/google"
 )
 
@@ -62,10 +62,9 @@ type Image struct {
 
 // TODO(tazjin): docstring
 type BuildResult struct {
-	Error string
-	Pkgs  []string
-
-	Manifest struct{} // TODO(tazjin): OCIv1 manifest
+	Error    string          `json:"error"`
+	Pkgs     []string        `json:"pkgs"`
+	Manifest json.RawMessage `json:"manifest"`
 }
 
 // ImageFromName parses an image name into the corresponding structure which can
@@ -149,6 +148,12 @@ func callNix(program string, name string, args []string) ([]byte, error) {
 	}
 	go logNix(name, errpipe)
 
+	if err = cmd.Start(); err != nil {
+		log.Printf("Error starting %s: %s\n", program, err)
+		return nil, err
+	}
+	log.Printf("Invoked Nix build (%s) for '%s'\n", program, name)
+
 	stdout, _ := ioutil.ReadAll(outpipe)
 
 	if err = cmd.Wait(); err != nil {
@@ -208,7 +213,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 // Returns information about all data layers that need to be included
 // in the manifest, as well as information about which layers need to
 // be uploaded (and from where).
-func prepareLayers(ctx *context.Context, s *State, image *Image, graph *layers.RuntimeGraph) (map[string]string, error) {
+func prepareLayers(ctx context.Context, s *State, image *Image, graph *layers.RuntimeGraph) (map[string]string, error) {
 	grouped := layers.Group(graph, &s.Pop, LayerBudget)
 
 	// TODO(tazjin): Introduce caching strategy, for now this will
@@ -219,7 +224,8 @@ func prepareLayers(ctx *context.Context, s *State, image *Image, graph *layers.R
 		"--argstr", "srcArgs", srcArgs,
 	}
 
-	var layerInput map[string][]string
+	layerInput := make(map[string][]string)
+	allPaths := []string{}
 	for _, l := range grouped {
 		layerInput[l.Hash()] = l.Contents
 
@@ -231,9 +237,11 @@ func prepareLayers(ctx *context.Context, s *State, image *Image, graph *layers.R
 		// To work around this, all required store paths are added as
 		// 'extra-sandbox-paths' parameters.
 		for _, p := range l.Contents {
-			args = append(args, "--option", "extra-sandbox-paths", p)
+			allPaths = append(allPaths, p)
 		}
 	}
+
+	args = append(args, "--option", "extra-sandbox-paths", strings.Join(allPaths, " "))
 
 	j, _ := json.Marshal(layerInput)
 	args = append(args, "--argstr", "layers", string(j))
@@ -243,6 +251,7 @@ func prepareLayers(ctx *context.Context, s *State, image *Image, graph *layers.R
 		log.Printf("failed to call nixery-build-layers: %s\n", err)
 		return nil, err
 	}
+	log.Printf("Finished layer preparation for '%s' via Nix\n", image.Name)
 
 	result := make(map[string]string)
 	err = json.Unmarshal(output, &result)
@@ -306,32 +315,25 @@ func renameObject(ctx context.Context, s *State, old, new string) error {
 //
 // The return value is the layer's SHA256 hash, which is used in the
 // image manifest.
-func uploadHashLayer(ctx context.Context, s *State, key, path string) (string, error) {
+func uploadHashLayer(ctx context.Context, s *State, key string, data io.Reader) (*manifest.Entry, error) {
 	staging := s.Bucket.Object("staging/" + key)
 
-	// Set up a writer that simultaneously runs both hash
+	// Sets up a "multiwriter" that simultaneously runs both hash
 	// algorithms and uploads to the bucket
 	sw := staging.NewWriter(ctx)
 	shasum := sha256.New()
 	md5sum := md5.New()
 	multi := io.MultiWriter(sw, shasum, md5sum)
 
-	f, err := os.Open(path)
-	if err != nil {
-		log.Printf("failed to open layer at '%s' for reading: %s\n", path, err)
-		return "", err
-	}
-	defer f.Close()
-
-	size, err := io.Copy(multi, f)
+	size, err := io.Copy(multi, data)
 	if err != nil {
 		log.Printf("failed to upload layer '%s' to staging: %s\n", key, err)
-		return "", err
+		return nil, err
 	}
 
 	if err = sw.Close(); err != nil {
 		log.Printf("failed to upload layer '%s' to staging: %s\n", key, err)
-		return "", err
+		return nil, err
 	}
 
 	build := Build{
@@ -344,20 +346,25 @@ func uploadHashLayer(ctx context.Context, s *State, key, path string) (string, e
 	err = renameObject(ctx, s, "staging/"+key, "layers/"+build.SHA256)
 	if err != nil {
 		log.Printf("failed to move layer '%s' from staging: %s\n", key, err)
-		return "", err
+		return nil, err
 	}
 
 	cacheBuild(ctx, &s.Cache, s.Bucket, key, build)
 
 	log.Printf("Uploaded layer sha256:%s (%v bytes written)", build.SHA256, size)
 
-	return build.SHA256, nil
+	return &manifest.Entry{
+		Digest: "sha256:" + build.SHA256,
+		Size:   size,
+	}, nil
 }
 
-func BuildImage(ctx *context.Context, s *State, image *Image) (*BuildResult, error) {
+func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, error) {
+	// TODO(tazjin): Use the build cache
+
 	imageResult, err := prepareImage(s, image)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to prepare image '%s': %s", image.Name, err)
 	}
 
 	if imageResult.Error != "" {
@@ -367,51 +374,38 @@ func BuildImage(ctx *context.Context, s *State, image *Image) (*BuildResult, err
 		}, nil
 	}
 
-	_, err = prepareLayers(ctx, s, image, &imageResult.Graph)
+	layerResult, err := prepareLayers(ctx, s, image, &imageResult.Graph)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, nil
-}
-
-// uploadLayer uploads a single layer to Cloud Storage bucket. Before writing
-// any data the bucket is probed to see if the file already exists.
-//
-// If the file does exist, its MD5 hash is verified to ensure that the stored
-// file is not - for example - a fragment of a previous, incomplete upload.
-func uploadLayer(ctx context.Context, bucket *storage.BucketHandle, layer string, path string, md5 []byte) error {
-	layerKey := fmt.Sprintf("layers/%s", layer)
-	obj := bucket.Object(layerKey)
-
-	// Before uploading a layer to the bucket, probe whether it already
-	// exists.
-	//
-	// If it does and the MD5 checksum matches the expected one, the layer
-	// upload can be skipped.
-	attrs, err := obj.Attrs(ctx)
-
-	if err == nil && bytes.Equal(attrs.MD5, md5) {
-		log.Printf("Layer sha256:%s already exists in bucket, skipping upload", layer)
-	} else {
-		writer := obj.NewWriter(ctx)
-		file, err := os.Open(path)
-
+	layers := []manifest.Entry{}
+	for key, path := range layerResult {
+		f, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("failed to open layer %s from path %s: %v", layer, path, err)
+			log.Printf("failed to open layer at '%s': %s\n", path, err)
+			return nil, err
 		}
 
-		size, err := io.Copy(writer, file)
+		entry, err := uploadHashLayer(ctx, s, key, f)
+		f.Close()
 		if err != nil {
-			return fmt.Errorf("failed to write layer %s to Cloud Storage: %v", layer, err)
+			return nil, err
 		}
 
-		if err = writer.Close(); err != nil {
-			return fmt.Errorf("failed to write layer %s to Cloud Storage: %v", layer, err)
-		}
-
-		log.Printf("Uploaded layer sha256:%s (%v bytes written)\n", layer, size)
+		layers = append(layers, *entry)
 	}
 
-	return nil
+	m, c := manifest.Manifest(layers)
+	if _, err = uploadHashLayer(ctx, s, c.SHA256, bytes.NewReader(c.Config)); err != nil {
+		log.Printf("failed to upload config for %s: %s\n", image.Name, err)
+		return nil, err
+	}
+
+	result := BuildResult{
+		Manifest: m,
+	}
+	// TODO: cache manifest
+
+	return &result, nil
 }
