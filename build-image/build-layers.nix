@@ -25,7 +25,7 @@
 
 let
   inherit (builtins) fromJSON mapAttrs toJSON;
-  inherit (pkgs) lib runCommand;
+  inherit (pkgs) lib runCommand writeText;
 
   pkgs = import loadPkgs { inherit srcType srcArgs importArgs; };
 
