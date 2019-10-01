@@ -122,7 +122,7 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 }
 
 type registryHandler struct {
-	ctx   *context.Context
+	ctx   context.Context
 	state *builder.State
 }
 
@@ -201,7 +201,7 @@ func main() {
 
 	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{
-		ctx:   &ctx,
+		ctx:   ctx,
 		state: &state,
 	})
 

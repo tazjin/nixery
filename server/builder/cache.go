@@ -52,6 +52,7 @@ func NewCache() LocalCache {
 	return LocalCache{
 		mcache: make(map[string]string),
 		lcache: make(map[string]void),
+		bcache: make(map[string]Build),
 	}
 }
 
@@ -111,7 +112,7 @@ func (c *LocalCache) localCacheBuild(key string, b Build) {
 
 // Retrieve a manifest from the cache(s). First the local cache is
 // checked, then the GCS-bucket cache.
-func manifestFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string) (string, bool) {
+func manifestFromCache(ctx context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string) (string, bool) {
 	path, cached := cache.manifestFromLocalCache(key)
 	if cached {
 		return path, true
@@ -120,12 +121,12 @@ func manifestFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.
 	obj := bucket.Object("manifests/" + key)
 
 	// Probe whether the file exists before trying to fetch it.
-	_, err := obj.Attrs(*ctx)
+	_, err := obj.Attrs(ctx)
 	if err != nil {
 		return "", false
 	}
 
-	r, err := obj.NewReader(*ctx)
+	r, err := obj.NewReader(ctx)
 	if err != nil {
 		log.Printf("Failed to retrieve manifest '%s' from cache: %s\n", key, err)
 		return "", false
@@ -222,11 +223,9 @@ func cacheBuild(ctx context.Context, cache *LocalCache, bucket *storage.BucketHa
 
 	w := obj.NewWriter(ctx)
 
-	size, err := io.Copy(w, bytes.NewReader(j))
+	_, err := io.Copy(w, bytes.NewReader(j))
 	if err != nil {
 		log.Printf("failed to cache build '%s': %s\n", key, err)
 		return
 	}
-
-	log.Printf("cached build '%s' (%v bytes written)\n", key, size)
 }
