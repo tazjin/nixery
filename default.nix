@@ -44,7 +44,7 @@ in rec {
   # are installing Nixery directly.
   nixery-bin = writeShellScriptBin "nixery" ''
     export WEB_DIR="${nixery-book}"
-    export PATH="${nixery-build-image}/bin:$PATH"
+    export PATH="${nixery-build-layers}/bin:${nixery-build-image}/bin:$PATH"
     exec ${nixery-server}/bin/nixery
   '';
 
@@ -96,6 +96,7 @@ in rec {
       iana-etc
       nix
       nixery-build-image
+      nixery-build-layers
       nixery-launch-script
       openssh
       zlib
