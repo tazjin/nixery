@@ -63,7 +63,10 @@ type Image struct {
 	Packages []string
 }
 
-// TODO(tazjin): docstring
+// BuildResult represents the data returned from the server to the
+// HTTP handlers. Error information is propagated straight from Nix
+// for errors inside of the build that should be fed back to the
+// client (such as missing packages).
 type BuildResult struct {
 	Error    string          `json:"error"`
 	Pkgs     []string        `json:"pkgs"`
@@ -381,6 +384,8 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 	if err != nil {
 		return nil, err
 	}
+
+	layerResult[imageResult.SymlinkLayer.SHA256] = imageResult.SymlinkLayer.Path
 
 	layers := []manifest.Entry{}
 	for key, path := range layerResult {
