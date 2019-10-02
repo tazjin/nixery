@@ -355,7 +355,7 @@ func uploadHashLayer(ctx context.Context, s *State, key string, data io.Reader) 
 		return nil, err
 	}
 
-	cacheBuild(ctx, &s.Cache, s.Bucket, key, build)
+	cacheBuild(ctx, s, key, build)
 
 	log.Printf("Uploaded layer sha256:%s (%v bytes written)", build.SHA256, size)
 
