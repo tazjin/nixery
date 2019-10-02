@@ -45,6 +45,9 @@ import (
 // use up is set at a lower point.
 const LayerBudget int = 94
 
+// API scope needed for renaming objects in GCS
+const gcsScope = "https://www.googleapis.com/auth/devstorage.read_write"
+
 // HTTP client to use for direct calls to APIs that are not part of the SDK
 var client = &http.Client{}
 
@@ -270,7 +273,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, graph *layers.Ru
 func renameObject(ctx context.Context, s *State, old, new string) error {
 	bucket := s.Cfg.Bucket
 
-	creds, err := google.FindDefaultCredentials(ctx)
+	creds, err := google.FindDefaultCredentials(ctx, gcsScope)
 	if err != nil {
 		return err
 	}
