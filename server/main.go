@@ -81,15 +81,15 @@ func constructLayerUrl(cfg *config.Config, digest string) (string, error) {
 //
 // The bucket is required for Nixery to function correctly, hence fatal errors
 // are generated in case it fails to be set up correctly.
-func prepareBucket(ctx *context.Context, cfg *config.Config) *storage.BucketHandle {
-	client, err := storage.NewClient(*ctx)
+func prepareBucket(ctx context.Context, cfg *config.Config) *storage.BucketHandle {
+	client, err := storage.NewClient(ctx)
 	if err != nil {
 		log.Fatalln("Failed to set up Cloud Storage client:", err)
 	}
 
 	bkt := client.Bucket(cfg.Bucket)
 
-	if _, err := bkt.Attrs(*ctx); err != nil {
+	if _, err := bkt.Attrs(ctx); err != nil {
 		log.Fatalln("Could not access configured bucket", err)
 	}
 
@@ -194,7 +194,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	bucket := prepareBucket(&ctx, cfg)
+	bucket := prepareBucket(ctx, cfg)
 	state := builder.NewState(bucket, *cfg)
 
 	log.Printf("Starting Nixery on port %s\n", cfg.Port)

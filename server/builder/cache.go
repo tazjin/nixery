@@ -21,8 +21,6 @@ import (
 	"log"
 	"os"
 	"sync"
-
-	"cloud.google.com/go/storage"
 )
 
 type Build struct {
@@ -72,29 +70,29 @@ func (c *LocalCache) localCacheManifest(key, path string) {
 
 // Retrieve a cached build from the local cache.
 func (c *LocalCache) buildFromLocalCache(key string) (*Build, bool) {
-	c.bmtx.RLock()
+	c.lmtx.RLock()
 	b, ok := c.lcache[key]
-	c.bmtx.RUnlock()
+	c.lmtx.RUnlock()
 
 	return &b, ok
 }
 
 // Add a build result to the local cache.
 func (c *LocalCache) localCacheBuild(key string, b Build) {
-	c.bmtx.Lock()
+	c.lmtx.Lock()
 	c.lcache[key] = b
-	c.bmtx.Unlock()
+	c.lmtx.Unlock()
 }
 
 // Retrieve a manifest from the cache(s). First the local cache is
 // checked, then the GCS-bucket cache.
-func manifestFromCache(ctx context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string) (string, bool) {
-	path, cached := cache.manifestFromLocalCache(key)
+func manifestFromCache(ctx context.Context, s *State, key string) (string, bool) {
+	path, cached := s.Cache.manifestFromLocalCache(key)
 	if cached {
 		return path, true
 	}
 
-	obj := bucket.Object("manifests/" + key)
+	obj := s.Bucket.Object("manifests/" + key)
 
 	// Probe whether the file exists before trying to fetch it.
 	_, err := obj.Attrs(ctx)
@@ -119,17 +117,17 @@ func manifestFromCache(ctx context.Context, cache *LocalCache, bucket *storage.B
 	}
 
 	log.Printf("Retrieved manifest for sha1:%s from GCS\n", key)
-	cache.localCacheManifest(key, path)
+	go s.Cache.localCacheManifest(key, path)
 
 	return path, true
 }
 
 // Add a manifest to the bucket & local caches
-func cacheManifest(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key, path string) {
-	cache.localCacheManifest(key, path)
+func cacheManifest(ctx context.Context, s *State, key, path string) {
+	go s.Cache.localCacheManifest(key, path)
 
-	obj := bucket.Object("manifests/" + key)
-	w := obj.NewWriter(*ctx)
+	obj := s.Bucket.Object("manifests/" + key)
+	w := obj.NewWriter(ctx)
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -154,19 +152,19 @@ func cacheManifest(ctx *context.Context, cache *LocalCache, bucket *storage.Buck
 
 // Retrieve a build from the cache, first checking the local cache
 // followed by the bucket cache.
-func buildFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string) (*Build, bool) {
-	build, cached := cache.buildFromLocalCache(key)
+func buildFromCache(ctx context.Context, s *State, key string) (*Build, bool) {
+	build, cached := s.Cache.buildFromLocalCache(key)
 	if cached {
 		return build, true
 	}
 
-	obj := bucket.Object("builds/" + key)
-	_, err := obj.Attrs(*ctx)
+	obj := s.Bucket.Object("builds/" + key)
+	_, err := obj.Attrs(ctx)
 	if err != nil {
 		return nil, false
 	}
 
-	r, err := obj.NewReader(*ctx)
+	r, err := obj.NewReader(ctx)
 	if err != nil {
 		log.Printf("Failed to retrieve build '%s' from cache: %s\n", key, err)
 		return nil, false
@@ -187,13 +185,14 @@ func buildFromCache(ctx *context.Context, cache *LocalCache, bucket *storage.Buc
 		return nil, false
 	}
 
+	go s.Cache.localCacheBuild(key, b)
 	return &b, true
 }
 
-func cacheBuild(ctx context.Context, cache *LocalCache, bucket *storage.BucketHandle, key string, build Build) {
-	cache.localCacheBuild(key, build)
+func cacheBuild(ctx context.Context, s *State, key string, build Build) {
+	go s.Cache.localCacheBuild(key, build)
 
-	obj := bucket.Object("builds/" + key)
+	obj := s.Bucket.Object("builds/" + key)
 
 	j, _ := json.Marshal(&build)
 
