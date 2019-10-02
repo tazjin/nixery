@@ -25,8 +25,6 @@ import (
 	"cloud.google.com/go/storage"
 )
 
-type void struct{}
-
 type Build struct {
 	SHA256 string `json:"sha256"`
 	MD5    string `json:"md5"`
@@ -39,38 +37,16 @@ type LocalCache struct {
 	mmtx   sync.RWMutex
 	mcache map[string]string
 
-	// Layer (tarball) cache
+	// Layer cache
 	lmtx   sync.RWMutex
-	lcache map[string]void
-
-	// Layer (build) cache
-	bmtx   sync.RWMutex
-	bcache map[string]Build
+	lcache map[string]Build
 }
 
 func NewCache() LocalCache {
 	return LocalCache{
 		mcache: make(map[string]string),
-		lcache: make(map[string]void),
-		bcache: make(map[string]Build),
+		lcache: make(map[string]Build),
 	}
-}
-
-// Has this layer hash already been seen by this Nixery instance? If
-// yes, we can skip upload checking and such because it has already
-// been done.
-func (c *LocalCache) hasSeenLayer(hash string) bool {
-	c.lmtx.RLock()
-	defer c.lmtx.RUnlock()
-	_, seen := c.lcache[hash]
-	return seen
-}
-
-// Layer has now been seen and should be stored.
-func (c *LocalCache) sawLayer(hash string) {
-	c.lmtx.Lock()
-	defer c.lmtx.Unlock()
-	c.lcache[hash] = void{}
 }
 
 // Retrieve a cached manifest if the build is cacheable and it exists.
@@ -97,7 +73,7 @@ func (c *LocalCache) localCacheManifest(key, path string) {
 // Retrieve a cached build from the local cache.
 func (c *LocalCache) buildFromLocalCache(key string) (*Build, bool) {
 	c.bmtx.RLock()
-	b, ok := c.bcache[key]
+	b, ok := c.lcache[key]
 	c.bmtx.RUnlock()
 
 	return &b, ok
@@ -106,7 +82,7 @@ func (c *LocalCache) buildFromLocalCache(key string) (*Build, bool) {
 // Add a build result to the local cache.
 func (c *LocalCache) localCacheBuild(key string, b Build) {
 	c.bmtx.Lock()
-	c.bcache[key] = b
+	c.lcache[key] = b
 	c.bmtx.Unlock()
 }
 
