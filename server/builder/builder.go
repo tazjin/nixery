@@ -87,7 +87,7 @@ type BuildResult struct {
 // be used to invoke Nix.
 //
 // It will expand convenience names under the hood (see the `convenienceNames`
-// function below).
+// function below) and append packages that are always included (cacert, iana-etc).
 //
 // Once assembled the image structure uses a sorted representation of
 // the name. This is to avoid unnecessarily cache-busting images if
@@ -95,6 +95,7 @@ type BuildResult struct {
 func ImageFromName(name string, tag string) Image {
 	pkgs := strings.Split(name, "/")
 	expanded := convenienceNames(pkgs)
+	expanded = append(expanded, "cacert", "iana-etc")
 
 	sort.Strings(pkgs)
 	sort.Strings(expanded)
@@ -131,7 +132,7 @@ type ImageResult struct {
 //
 // * `shell`: Includes bash, coreutils and other common command-line tools
 func convenienceNames(packages []string) []string {
-	shellPackages := []string{"bashInteractive", "cacert", "coreutils", "iana-etc", "moreutils", "nano"}
+	shellPackages := []string{"bashInteractive", "coreutils", "moreutils", "nano"}
 
 	if packages[0] == "shell" {
 		return append(packages[1:], shellPackages...)

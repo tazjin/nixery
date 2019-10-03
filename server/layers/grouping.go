@@ -186,13 +186,11 @@ func (c *closure) bigOrPopular() bool {
 		return true
 	}
 
-	// The threshold value used here is currently roughly the
-	// minimum number of references that only 1% of packages in
-	// the entire package set have.
-	//
-	// TODO(tazjin): Do this more elegantly by calculating
-	// percentiles for each package and using those instead.
-	if c.Popularity >= 1000 {
+	// Threshold value is picked arbitrarily right now. The reason
+	// for this is that some packages (such as `cacert`) have very
+	// few direct dependencies, but are required by pretty much
+	// everything.
+	if c.Popularity >= 100 {
 		return true
 	}
 
@@ -241,7 +239,17 @@ func buildGraph(refs *RuntimeGraph, pop *Popularity) *simple.DirectedGraph {
 			Refs:    c.Refs,
 		}
 
-		if p, ok := (*pop)[node.DOTID()]; ok {
+		// The packages `nss-cacert` and `iana-etc` are added
+		// by Nixery to *every single image* and should have a
+		// very high popularity.
+		//
+		// Other popularity values are populated from the data
+		// set assembled by Nixery's popcount.
+		id := node.DOTID()
+		if strings.HasPrefix(id, "nss-cacert") || strings.HasPrefix(id, "iana-etc") {
+			// glibc has ~300k references, these packages need *more*
+			node.Popularity = 500000
+		} else if p, ok := (*pop)[id]; ok {
 			node.Popularity = p
 		} else {
 			node.Popularity = 1
