@@ -46,9 +46,8 @@ They are stored content-addressably at `$BUCKET/layers/$SHA256HASH` and layer
 requests sent to Nixery will redirect directly to this storage location.
 
 The effect of this cache is that Nixery does not need to upload identical layers
-repeatedly. When Nixery notices that a layer already exists in GCS, it will use
-the object metadata to compare its MD5-hash with the locally computed one and
-skip uploading.
+repeatedly. When Nixery notices that a layer already exists in GCS it will skip
+uploading this layer.
 
 Removing layers from the cache is *potentially problematic* if there are cached
 manifests or layer builds referencing those layers.
@@ -61,8 +60,8 @@ reference these layers.
 Layer builds are cached at `$BUCKET/builds/$HASH`, where `$HASH` is a SHA1 of
 the Nix store paths included in the layer.
 
-The content of the cached entries is a JSON-object that contains the MD5 and
-SHA256 hashes of the built layer.
+The content of the cached entries is a JSON-object that contains the SHA256
+hashes and sizes of the built layer.
 
 The effect of this cache is that different instances of Nixery will not build,
 hash and upload layers that have identical contents across different instances.

@@ -137,11 +137,10 @@ let
     buildInputs = with pkgs; [ coreutils jq openssl ];
   }''
     layerSha256=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
-    layerMd5=$(openssl dgst -md5 -binary ${symlinkLayer} | openssl enc -base64)
     layerSize=$(stat --printf '%s' ${symlinkLayer})
 
-    jq -n -c --arg sha256 $layerSha256 --arg md5 $layerMd5 --arg size $layerSize --arg path ${symlinkLayer} \
-      '{ size: ($size | tonumber), sha256: $sha256, md5: $md5, path: $path }' >> $out
+    jq -n -c --arg sha256 $layerSha256 --arg size $layerSize --arg path ${symlinkLayer} \
+      '{ size: ($size | tonumber), sha256: $sha256, path: $path }' >> $out
   ''));
 
   # Final output structure returned to Nixery if the build succeeded
