@@ -3,7 +3,6 @@
 package manifest
 
 import (
-	"crypto/md5"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -52,12 +51,11 @@ type imageConfig struct {
 }
 
 // ConfigLayer represents the configuration layer to be included in
-// the manifest, containing its JSON-serialised content and the SHA256
-// & MD5 hashes of its input.
+// the manifest, containing its JSON-serialised content and SHA256
+// hash.
 type ConfigLayer struct {
 	Config []byte
 	SHA256 string
-	MD5    string
 }
 
 // imageConfig creates an image configuration with the values set to
@@ -78,7 +76,6 @@ func configLayer(hashes []string) ConfigLayer {
 	return ConfigLayer{
 		Config: j,
 		SHA256: fmt.Sprintf("%x", sha256.Sum256(j)),
-		MD5:    fmt.Sprintf("%x", md5.Sum(j)),
 	}
 }
 

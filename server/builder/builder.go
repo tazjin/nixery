@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/md5"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -108,7 +107,6 @@ type ImageResult struct {
 	SymlinkLayer struct {
 		Size   int    `json:"size"`
 		SHA256 string `json:"sha256"`
-		MD5    string `json:"md5"`
 		Path   string `json:"path"`
 	} `json:"symlinkLayer"`
 }
@@ -328,8 +326,7 @@ func uploadHashLayer(ctx context.Context, s *State, key string, data io.Reader) 
 	// algorithms and uploads to the bucket
 	sw := staging.NewWriter(ctx)
 	shasum := sha256.New()
-	md5sum := md5.New()
-	multi := io.MultiWriter(sw, shasum, md5sum)
+	multi := io.MultiWriter(sw, shasum)
 
 	size, err := io.Copy(multi, data)
 	if err != nil {
@@ -342,27 +339,24 @@ func uploadHashLayer(ctx context.Context, s *State, key string, data io.Reader) 
 		return nil, err
 	}
 
-	build := Build{
-		SHA256: fmt.Sprintf("%x", shasum.Sum([]byte{})),
-		MD5:    fmt.Sprintf("%x", md5sum.Sum([]byte{})),
-	}
+	sha256sum := fmt.Sprintf("%x", shasum.Sum([]byte{}))
 
 	// Hashes are now known and the object is in the bucket, what
 	// remains is to move it to the correct location and cache it.
-	err = renameObject(ctx, s, "staging/"+key, "layers/"+build.SHA256)
+	err = renameObject(ctx, s, "staging/"+key, "layers/"+sha256sum)
 	if err != nil {
 		log.Printf("failed to move layer '%s' from staging: %s\n", key, err)
 		return nil, err
 	}
 
-	cacheBuild(ctx, s, key, build)
+	log.Printf("Uploaded layer sha256:%s (%v bytes written)", sha256sum, size)
 
-	log.Printf("Uploaded layer sha256:%s (%v bytes written)", build.SHA256, size)
-
-	return &manifest.Entry{
-		Digest: "sha256:" + build.SHA256,
+	entry := manifest.Entry{
+		Digest: "sha256:" + sha256sum,
 		Size:   size,
-	}, nil
+	}
+
+	return &entry, nil
 }
 
 func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, error) {

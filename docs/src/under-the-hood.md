@@ -67,8 +67,7 @@ just ... hang, for a moment.
 
 Nixery inspects the returned manifest and uploads each layer to the configured
 [Google Cloud Storage][gcs] bucket. To avoid unnecessary uploading, it will
-first check whether layers are already present in the bucket and - just to be
-safe - compare their MD5-hashes against what was built.
+check whether layers are already present in the bucket.
 
 ## 4. The image manifest is sent back
 
