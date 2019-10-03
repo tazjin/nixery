@@ -277,6 +277,11 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 
 // Builds remaining layers (those not already cached) via Nix.
 func buildLayers(s *State, image *Image, grouped []layers.Layer) (map[string]string, error) {
+	result := make(map[string]string)
+	if len(grouped) == 0 {
+		return result, nil
+	}
+
 	srcType, srcArgs := s.Cfg.Pkgs.Render(image.Tag)
 	args := []string{
 		"--argstr", "srcType", srcType,
@@ -312,7 +317,6 @@ func buildLayers(s *State, image *Image, grouped []layers.Layer) (map[string]str
 	}
 	log.Printf("Finished layer preparation for '%s' via Nix\n", image.Name)
 
-	result := make(map[string]string)
 	err = json.Unmarshal(output, &result)
 	if err != nil {
 		return nil, err
