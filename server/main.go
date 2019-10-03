@@ -194,8 +194,17 @@ func main() {
 	}
 
 	ctx := context.Background()
-	bucket := prepareBucket(ctx, cfg)
-	state := builder.NewState(bucket, *cfg)
+	bucket := prepareBucket(ctx, &cfg)
+	cache, err := builder.NewCache()
+	if err != nil {
+		log.Fatalln("Failed to instantiate build cache", err)
+	}
+
+	state := builder.State{
+		Bucket: bucket,
+		Cache:  &cache,
+		Cfg:    cfg,
+	}
 
 	log.Printf("Starting Nixery on port %s\n", cfg.Port)
 

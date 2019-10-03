@@ -71,13 +71,13 @@ type Config struct {
 	PopUrl  string                    // URL to the Nix package popularity count
 }
 
-func FromEnv() (*Config, error) {
+func FromEnv() (Config, error) {
 	pkgs, err := pkgSourceFromEnv()
 	if err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
-	return &Config{
+	return Config{
 		Bucket:  getConfig("BUCKET", "GCS bucket for layer storage", ""),
 		Port:    getConfig("PORT", "HTTP port", ""),
 		Pkgs:    pkgs,
