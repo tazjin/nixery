@@ -18,8 +18,8 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"log"
-	"os"
 	"sync"
 )
 
@@ -86,57 +86,48 @@ func (c *LocalCache) localCacheBuild(key string, b Build) {
 
 // Retrieve a manifest from the cache(s). First the local cache is
 // checked, then the GCS-bucket cache.
-func manifestFromCache(ctx context.Context, s *State, key string) (string, bool) {
-	path, cached := s.Cache.manifestFromLocalCache(key)
-	if cached {
-		return path, true
-	}
+func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessage, bool) {
+	// path, cached := s.Cache.manifestFromLocalCache(key)
+	// if cached {
+	// 	return path, true
+	// }
+	// TODO: local cache?
 
 	obj := s.Bucket.Object("manifests/" + key)
 
 	// Probe whether the file exists before trying to fetch it.
 	_, err := obj.Attrs(ctx)
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 
 	r, err := obj.NewReader(ctx)
 	if err != nil {
 		log.Printf("Failed to retrieve manifest '%s' from cache: %s\n", key, err)
-		return "", false
+		return nil, false
 	}
 	defer r.Close()
 
-	path = os.TempDir() + "/" + key
-	f, _ := os.Create(path)
-	defer f.Close()
-
-	_, err = io.Copy(f, r)
+	m, err := ioutil.ReadAll(r)
 	if err != nil {
 		log.Printf("Failed to read cached manifest for '%s': %s\n", key, err)
 	}
 
+	// TODO: locally cache manifest, but the cache needs to be changed
 	log.Printf("Retrieved manifest for sha1:%s from GCS\n", key)
-	go s.Cache.localCacheManifest(key, path)
-
-	return path, true
+	return json.RawMessage(m), true
 }
 
 // Add a manifest to the bucket & local caches
-func cacheManifest(ctx context.Context, s *State, key, path string) {
-	go s.Cache.localCacheManifest(key, path)
+func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage) {
+	// go s.Cache.localCacheManifest(key, path)
+	// TODO local cache
 
 	obj := s.Bucket.Object("manifests/" + key)
 	w := obj.NewWriter(ctx)
+	r := bytes.NewReader([]byte(m))
 
-	f, err := os.Open(path)
-	if err != nil {
-		log.Printf("failed to open manifest sha1:%s for cache upload: %s\n", key, err)
-		return
-	}
-	defer f.Close()
-
-	size, err := io.Copy(w, f)
+	size, err := io.Copy(w, r)
 	if err != nil {
 		log.Printf("failed to cache manifest sha1:%s: %s\n", key, err)
 		return

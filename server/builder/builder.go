@@ -366,7 +366,14 @@ func uploadHashLayer(ctx context.Context, s *State, key string, data io.Reader) 
 }
 
 func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, error) {
-	// TODO(tazjin): Use the build cache
+	key := s.Cfg.Pkgs.CacheKey(image.Packages, image.Tag)
+	if key != "" {
+		if m, c := manifestFromCache(ctx, s, key); c {
+			return &BuildResult{
+				Manifest: m,
+			}, nil
+		}
+	}
 
 	imageResult, err := prepareImage(s, image)
 	if err != nil {
@@ -410,10 +417,12 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 		return nil, err
 	}
 
+	if key != "" {
+		go cacheManifest(ctx, s, key, m)
+	}
+
 	result := BuildResult{
 		Manifest: m,
 	}
-	// TODO: cache manifest
-
 	return &result, nil
 }
