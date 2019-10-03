@@ -25,7 +25,7 @@ const (
 )
 
 type Entry struct {
-	MediaType string `json:"mediaType"`
+	MediaType string `json:"mediaType,omitempty"`
 	Size      int64  `json:"size"`
 	Digest    string `json:"digest"`
 }

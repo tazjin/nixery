@@ -21,12 +21,9 @@ import (
 	"io/ioutil"
 	"log"
 	"sync"
-)
 
-type Build struct {
-	SHA256 string `json:"sha256"`
-	MD5    string `json:"md5"`
-}
+	"github.com/google/nixery/manifest"
+)
 
 // LocalCache implements the structure used for local caching of
 // manifests and layer uploads.
@@ -37,13 +34,13 @@ type LocalCache struct {
 
 	// Layer cache
 	lmtx   sync.RWMutex
-	lcache map[string]Build
+	lcache map[string]manifest.Entry
 }
 
 func NewCache() LocalCache {
 	return LocalCache{
 		mcache: make(map[string]string),
-		lcache: make(map[string]Build),
+		lcache: make(map[string]manifest.Entry),
 	}
 }
 
@@ -68,19 +65,19 @@ func (c *LocalCache) localCacheManifest(key, path string) {
 	c.mmtx.Unlock()
 }
 
-// Retrieve a cached build from the local cache.
-func (c *LocalCache) buildFromLocalCache(key string) (*Build, bool) {
+// Retrieve a layer build from the local cache.
+func (c *LocalCache) layerFromLocalCache(key string) (*manifest.Entry, bool) {
 	c.lmtx.RLock()
-	b, ok := c.lcache[key]
+	e, ok := c.lcache[key]
 	c.lmtx.RUnlock()
 
-	return &b, ok
+	return &e, ok
 }
 
-// Add a build result to the local cache.
-func (c *LocalCache) localCacheBuild(key string, b Build) {
+// Add a layer build result to the local cache.
+func (c *LocalCache) localCacheLayer(key string, e manifest.Entry) {
 	c.lmtx.Lock()
-	c.lcache[key] = b
+	c.lcache[key] = e
 	c.lmtx.Unlock()
 }
 
@@ -141,12 +138,11 @@ func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage)
 	log.Printf("Cached manifest sha1:%s (%v bytes written)\n", key, size)
 }
 
-// Retrieve a build from the cache, first checking the local cache
-// followed by the bucket cache.
-func buildFromCache(ctx context.Context, s *State, key string) (*Build, bool) {
-	build, cached := s.Cache.buildFromLocalCache(key)
-	if cached {
-		return build, true
+// Retrieve a layer build from the cache, first checking the local
+// cache followed by the bucket cache.
+func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry, bool) {
+	if entry, cached := s.Cache.layerFromLocalCache(key); cached {
+		return entry, true
 	}
 
 	obj := s.Bucket.Object("builds/" + key)
@@ -157,7 +153,7 @@ func buildFromCache(ctx context.Context, s *State, key string) (*Build, bool) {
 
 	r, err := obj.NewReader(ctx)
 	if err != nil {
-		log.Printf("Failed to retrieve build '%s' from cache: %s\n", key, err)
+		log.Printf("Failed to retrieve layer build '%s' from cache: %s\n", key, err)
 		return nil, false
 	}
 	defer r.Close()
@@ -165,27 +161,27 @@ func buildFromCache(ctx context.Context, s *State, key string) (*Build, bool) {
 	jb := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(jb, r)
 	if err != nil {
-		log.Printf("Failed to read build '%s' from cache: %s\n", key, err)
+		log.Printf("Failed to read layer build '%s' from cache: %s\n", key, err)
 		return nil, false
 	}
 
-	var b Build
-	err = json.Unmarshal(jb.Bytes(), &build)
+	var entry manifest.Entry
+	err = json.Unmarshal(jb.Bytes(), &entry)
 	if err != nil {
-		log.Printf("Failed to unmarshal build '%s' from cache: %s\n", key, err)
+		log.Printf("Failed to unmarshal layer build '%s' from cache: %s\n", key, err)
 		return nil, false
 	}
 
-	go s.Cache.localCacheBuild(key, b)
-	return &b, true
+	go s.Cache.localCacheLayer(key, entry)
+	return &entry, true
 }
 
-func cacheBuild(ctx context.Context, s *State, key string, build Build) {
-	go s.Cache.localCacheBuild(key, build)
+func cacheLayer(ctx context.Context, s *State, key string, entry manifest.Entry) {
+	s.Cache.localCacheLayer(key, entry)
 
 	obj := s.Bucket.Object("builds/" + key)
 
-	j, _ := json.Marshal(&build)
+	j, _ := json.Marshal(&entry)
 
 	w := obj.NewWriter(ctx)
 
