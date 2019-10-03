@@ -34,6 +34,8 @@ import (
 	"sort"
 	"strings"
 
+	"cloud.google.com/go/storage"
+	"github.com/google/nixery/config"
 	"github.com/google/nixery/layers"
 	"github.com/google/nixery/manifest"
 	"golang.org/x/oauth2/google"
@@ -49,6 +51,15 @@ const gcsScope = "https://www.googleapis.com/auth/devstorage.read_write"
 
 // HTTP client to use for direct calls to APIs that are not part of the SDK
 var client = &http.Client{}
+
+// State holds the runtime state that is carried around in Nixery and
+// passed to builder functions.
+type State struct {
+	Bucket *storage.BucketHandle
+	Cache  *LocalCache
+	Cfg    config.Config
+	Pop    layers.Popularity
+}
 
 // Image represents the information necessary for building a container image.
 // This can be either a list of package names (corresponding to keys in the

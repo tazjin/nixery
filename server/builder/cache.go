@@ -20,6 +20,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/google/nixery/manifest"
@@ -29,40 +30,64 @@ import (
 // manifests and layer uploads.
 type LocalCache struct {
 	// Manifest cache
-	mmtx   sync.RWMutex
-	mcache map[string]string
+	mmtx sync.RWMutex
+	mdir string
 
 	// Layer cache
 	lmtx   sync.RWMutex
 	lcache map[string]manifest.Entry
 }
 
-func NewCache() LocalCache {
-	return LocalCache{
-		mcache: make(map[string]string),
-		lcache: make(map[string]manifest.Entry),
+// Creates an in-memory cache and ensures that the local file path for
+// manifest caching exists.
+func NewCache() (LocalCache, error) {
+	path := os.TempDir() + "/nixery"
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		return LocalCache{}, err
 	}
+
+	return LocalCache{
+		mdir:   path + "/",
+		lcache: make(map[string]manifest.Entry),
+	}, nil
 }
 
 // Retrieve a cached manifest if the build is cacheable and it exists.
-func (c *LocalCache) manifestFromLocalCache(key string) (string, bool) {
+func (c *LocalCache) manifestFromLocalCache(key string) (json.RawMessage, bool) {
 	c.mmtx.RLock()
-	path, ok := c.mcache[key]
-	c.mmtx.RUnlock()
+	defer c.mmtx.RUnlock()
 
-	if !ok {
-		return "", false
+	f, err := os.Open(c.mdir + key)
+	if err != nil {
+		// TODO(tazjin): Once log levels are available, this
+		// might warrant a debug log.
+		return nil, false
+	}
+	defer f.Close()
+
+	m, err := ioutil.ReadAll(f)
+	if err != nil {
+		log.Printf("Failed to read manifest '%s' from local cache: %s\n", key, err)
+		return nil, false
 	}
 
-	return path, true
+	return json.RawMessage(m), true
 }
 
 // Adds the result of a manifest build to the local cache, if the
 // manifest is considered cacheable.
-func (c *LocalCache) localCacheManifest(key, path string) {
+//
+// Manifests can be quite large and are cached on disk instead of in
+// memory.
+func (c *LocalCache) localCacheManifest(key string, m json.RawMessage) {
 	c.mmtx.Lock()
-	c.mcache[key] = path
-	c.mmtx.Unlock()
+	defer c.mmtx.Unlock()
+
+	err := ioutil.WriteFile(c.mdir+key, []byte(m), 0644)
+	if err != nil {
+		log.Printf("Failed to locally cache manifest for '%s': %s\n", key, err)
+	}
 }
 
 // Retrieve a layer build from the local cache.
@@ -84,11 +109,9 @@ func (c *LocalCache) localCacheLayer(key string, e manifest.Entry) {
 // Retrieve a manifest from the cache(s). First the local cache is
 // checked, then the GCS-bucket cache.
 func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessage, bool) {
-	// path, cached := s.Cache.manifestFromLocalCache(key)
-	// if cached {
-	// 	return path, true
-	// }
-	// TODO: local cache?
+	if m, cached := s.Cache.manifestFromLocalCache(key); cached {
+		return m, true
+	}
 
 	obj := s.Bucket.Object("manifests/" + key)
 
@@ -110,15 +133,15 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 		log.Printf("Failed to read cached manifest for '%s': %s\n", key, err)
 	}
 
-	// TODO: locally cache manifest, but the cache needs to be changed
+	go s.Cache.localCacheManifest(key, m)
 	log.Printf("Retrieved manifest for sha1:%s from GCS\n", key)
+
 	return json.RawMessage(m), true
 }
 
 // Add a manifest to the bucket & local caches
 func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage) {
-	// go s.Cache.localCacheManifest(key, path)
-	// TODO local cache
+	go s.Cache.localCacheManifest(key, m)
 
 	obj := s.Bucket.Object("manifests/" + key)
 	w := obj.NewWriter(ctx)
