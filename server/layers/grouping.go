@@ -141,7 +141,7 @@ type Popularity = map[string]int
 // build for the container image.
 type Layer struct {
 	Contents    []string `json:"contents"`
-	mergeRating uint64
+	MergeRating uint64
 }
 
 // Hash the contents of a layer to create a deterministic identifier that can be
@@ -153,7 +153,7 @@ func (l *Layer) Hash() string {
 
 func (a Layer) merge(b Layer) Layer {
 	a.Contents = append(a.Contents, b.Contents...)
-	a.mergeRating += b.mergeRating
+	a.MergeRating += b.MergeRating
 	return a
 }
 
@@ -291,7 +291,7 @@ func groupLayer(dt *flow.DominatorTree, root *closure) Layer {
 		// both the size and the popularity when making merge
 		// decisions, but there might be a smarter way to do
 		// it than a plain multiplication.
-		mergeRating: uint64(root.Popularity) * size,
+		MergeRating: uint64(root.Popularity) * size,
 	}
 }
 
@@ -309,7 +309,7 @@ func dominate(budget int, graph *simple.DirectedGraph) []Layer {
 	}
 
 	sort.Slice(layers, func(i, j int) bool {
-		return layers[i].mergeRating < layers[j].mergeRating
+		return layers[i].MergeRating < layers[j].MergeRating
 	})
 
 	if len(layers) > budget {

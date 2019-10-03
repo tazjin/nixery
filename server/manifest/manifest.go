@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 const (
@@ -27,6 +28,10 @@ type Entry struct {
 	MediaType string `json:"mediaType,omitempty"`
 	Size      int64  `json:"size"`
 	Digest    string `json:"digest"`
+
+	// This field is internal to Nixery and not part of the
+	// serialised entry.
+	MergeRating uint64 `json:"-"`
 }
 
 type manifest struct {
@@ -85,6 +90,16 @@ func configLayer(hashes []string) ConfigLayer {
 //
 // Callers do not need to set the media type for the layer entries.
 func Manifest(layers []Entry) (json.RawMessage, ConfigLayer) {
+	// Sort layers by their merge rating, from highest to lowest.
+	// This makes it likely for a contiguous chain of shared image
+	// layers to appear at the beginning of a layer.
+	//
+	// Due to moby/moby#38446 Docker considers the order of layers
+	// when deciding which layers to download again.
+	sort.Slice(layers, func(i, j int) bool {
+		return layers[i].MergeRating > layers[j].MergeRating
+	})
+
 	hashes := make([]string, len(layers))
 	for i, l := range layers {
 		l.MediaType = "application/vnd.docker.image.rootfs.diff.tar"

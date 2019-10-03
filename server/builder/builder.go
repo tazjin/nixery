@@ -250,6 +250,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 			if err != nil {
 				return nil, err
 			}
+			entry.MergeRating = l.MergeRating
 
 			go cacheLayer(ctx, s, l.Hash(), *entry)
 			entries = append(entries, *entry)
