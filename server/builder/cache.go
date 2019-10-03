@@ -213,4 +213,9 @@ func cacheLayer(ctx context.Context, s *State, key string, entry manifest.Entry)
 		log.Printf("failed to cache build '%s': %s\n", key, err)
 		return
 	}
+
+	if err = w.Close(); err != nil {
+		log.Printf("failed to cache build '%s': %s\n", key, err)
+		return
+	}
 }
