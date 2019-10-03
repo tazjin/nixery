@@ -214,14 +214,58 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 // Groups layers and checks whether they are present in the cache
 // already, otherwise calls out to Nix to assemble layers.
 //
-// Returns information about all data layers that need to be included
-// in the manifest, as well as information about which layers need to
-// be uploaded (and from where).
-func prepareLayers(ctx context.Context, s *State, image *Image, graph *layers.RuntimeGraph) (map[string]string, error) {
-	grouped := layers.Group(graph, &s.Pop, LayerBudget)
+// Newly built layers are uploaded to the bucket. Cache entries are
+// added only after successful uploads, which guarantees that entries
+// retrieved from the cache are present in the bucket.
+func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageResult) ([]manifest.Entry, error) {
+	grouped := layers.Group(&result.Graph, &s.Pop, LayerBudget)
 
-	// TODO(tazjin): Introduce caching strategy, for now this will
-	// build all layers.
+	var entries []manifest.Entry
+	var missing []layers.Layer
+
+	// Splits the layers into those which are already present in
+	// the cache, and those that are missing (i.e. need to be
+	// built by Nix).
+	for _, l := range grouped {
+		if entry, cached := layerFromCache(ctx, s, l.Hash()); cached {
+			entries = append(entries, *entry)
+		} else {
+			missing = append(missing, l)
+		}
+	}
+
+	built, err := buildLayers(s, image, missing)
+	if err != nil {
+		log.Printf("Failed to build missing layers: %s\n", err)
+		return nil, err
+	}
+
+	// Symlink layer (built in the first Nix build) needs to be
+	// included when hashing & uploading
+	built[result.SymlinkLayer.SHA256] = result.SymlinkLayer.Path
+
+	for key, path := range built {
+		f, err := os.Open(path)
+		if err != nil {
+			log.Printf("failed to open layer at '%s': %s\n", path, err)
+			return nil, err
+		}
+
+		entry, err := uploadHashLayer(ctx, s, key, f)
+		f.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, *entry)
+		go cacheLayer(ctx, s, key, *entry)
+	}
+
+	return entries, nil
+}
+
+// Builds remaining layers (those not already cached) via Nix.
+func buildLayers(s *State, image *Image, grouped []layers.Layer) (map[string]string, error) {
 	srcType, srcArgs := s.Cfg.Pkgs.Render(image.Tag)
 	args := []string{
 		"--argstr", "srcType", srcType,
@@ -381,28 +425,9 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 		}, nil
 	}
 
-	layerResult, err := prepareLayers(ctx, s, image, &imageResult.Graph)
+	layers, err := prepareLayers(ctx, s, image, imageResult)
 	if err != nil {
 		return nil, err
-	}
-
-	layerResult[imageResult.SymlinkLayer.SHA256] = imageResult.SymlinkLayer.Path
-
-	layers := []manifest.Entry{}
-	for key, path := range layerResult {
-		f, err := os.Open(path)
-		if err != nil {
-			log.Printf("failed to open layer at '%s': %s\n", path, err)
-			return nil, err
-		}
-
-		entry, err := uploadHashLayer(ctx, s, key, f)
-		f.Close()
-		if err != nil {
-			return nil, err
-		}
-
-		layers = append(layers, *entry)
 	}
 
 	m, c := manifest.Manifest(layers)
