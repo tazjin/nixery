@@ -29,6 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"regexp"
@@ -37,6 +38,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/nixery/builder"
 	"github.com/google/nixery/config"
+	"github.com/google/nixery/layers"
 )
 
 // ManifestMediaType is the Content-Type used for the manifest itself. This
@@ -94,6 +96,32 @@ func prepareBucket(ctx context.Context, cfg *config.Config) *storage.BucketHandl
 	}
 
 	return bkt
+}
+
+// Downloads the popularity information for the package set from the
+// URL specified in Nixery's configuration.
+func downloadPopularity(url string) (layers.Popularity, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("popularity download from '%s' returned status: %s\n", url, resp.Status)
+	}
+
+	j, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var pop layers.Popularity
+	err = json.Unmarshal(j, &pop)
+	if err != nil {
+		return nil, err
+	}
+
+	return pop, nil
 }
 
 // Error format corresponding to the registry protocol V2 specification. This
@@ -200,10 +228,19 @@ func main() {
 		log.Fatalln("Failed to instantiate build cache", err)
 	}
 
+	var pop layers.Popularity
+	if cfg.PopUrl != "" {
+		pop, err = downloadPopularity(cfg.PopUrl)
+		if err != nil {
+			log.Fatalln("Failed to fetch popularity information", err)
+		}
+	}
+
 	state := builder.State{
 		Bucket: bucket,
 		Cache:  &cache,
 		Cfg:    cfg,
+		Pop:    pop,
 	}
 
 	log.Printf("Starting Nixery on port %s\n", cfg.Port)
