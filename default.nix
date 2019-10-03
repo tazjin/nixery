@@ -18,8 +18,7 @@
 
 with pkgs;
 
-let builders = import ./build-image { inherit pkgs; };
-in rec {
+rec {
   # Go implementation of the Nixery server which implements the
   # container registry interface.
   #
@@ -29,8 +28,7 @@ in rec {
   nixery-server = callPackage ./server { };
 
   # Implementation of the Nix image building logic
-  nixery-build-image = builders.build-image;
-  nixery-build-layers = builders.build-layers;
+  nixery-build-image = import ./build-image { inherit pkgs; };
 
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
@@ -44,7 +42,7 @@ in rec {
   # are installing Nixery directly.
   nixery-bin = writeShellScriptBin "nixery" ''
     export WEB_DIR="${nixery-book}"
-    export PATH="${nixery-build-layers}/bin:${nixery-build-image}/bin:$PATH"
+    export PATH="${nixery-build-image}/bin:$PATH"
     exec ${nixery-server}/bin/nixery
   '';
 
@@ -96,7 +94,6 @@ in rec {
       iana-etc
       nix
       nixery-build-image
-      nixery-build-layers
       nixery-launch-script
       openssh
       zlib
