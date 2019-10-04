@@ -19,10 +19,10 @@ package config
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 
 	"cloud.google.com/go/storage"
+	log "github.com/sirupsen/logrus"
 )
 
 // Load (optional) GCS bucket signing data from the GCS_SIGNING_KEY and

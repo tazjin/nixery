@@ -105,11 +105,11 @@ package layers
 import (
 	"crypto/sha1"
 	"fmt"
-	"log"
 	"regexp"
 	"sort"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"gonum.org/v1/gonum/graph/flow"
 	"gonum.org/v1/gonum/graph/simple"
 )

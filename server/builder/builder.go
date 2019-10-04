@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,6 +37,7 @@ import (
 	"github.com/google/nixery/config"
 	"github.com/google/nixery/layers"
 	"github.com/google/nixery/manifest"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2/google"
 )
 

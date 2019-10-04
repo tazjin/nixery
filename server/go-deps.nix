@@ -117,4 +117,13 @@
       sha256 = "1b7q6haabnp53igpmvr6a2414yralhbrldixx4kbxxg1apy8jdjg";
     };
   }
+  {
+    goPackagePath = "github.com/sirupsen/logrus";
+    fetch = {
+      type = "git";
+      url = "https://github.com/sirupsen/logrus";
+      rev = "de736cf91b921d56253b4010270681d33fdf7cb5";
+      sha256 = "1qixss8m5xy7pzbf0qz2k3shjw0asklm9sj6zyczp7mryrari0aj";
+    };
+  }
 ]
