@@ -10,11 +10,11 @@ package builder
 import (
 	"archive/tar"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/google/nixery/layers"
+	log "github.com/sirupsen/logrus"
 )
 
 // Create a new tarball from each of the paths in the list and write the tarball

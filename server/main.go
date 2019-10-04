@@ -30,7 +30,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"regexp"
 	"time"
@@ -39,6 +38,7 @@ import (
 	"github.com/google/nixery/builder"
 	"github.com/google/nixery/config"
 	"github.com/google/nixery/layers"
+	log "github.com/sirupsen/logrus"
 )
 
 // ManifestMediaType is the Content-Type used for the manifest itself. This

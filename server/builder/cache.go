@@ -19,11 +19,11 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"sync"
 
 	"github.com/google/nixery/manifest"
+	log "github.com/sirupsen/logrus"
 )
 
 // LocalCache implements the structure used for local caching of
