@@ -43,7 +43,7 @@ rec {
   nixery-bin = writeShellScriptBin "nixery" ''
     export WEB_DIR="${nixery-book}"
     export PATH="${nixery-build-image}/bin:$PATH"
-    exec ${nixery-server}/bin/nixery
+    exec ${nixery-server}/bin/server
   '';
 
   # Container image containing Nixery and Nix itself. This image can
