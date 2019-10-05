@@ -247,7 +247,10 @@ func main() {
 		Pop:    pop,
 	}
 
-	log.Printf("Starting Nixery (version %s) on port %s\n", version, cfg.Port)
+	log.WithFields(log.Fields{
+		"version": version,
+		"port":    cfg.Port,
+	}).Info("Starting Nixery")
 
 	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{
