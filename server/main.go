@@ -35,9 +35,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/google/nixery/builder"
-	"github.com/google/nixery/config"
-	"github.com/google/nixery/layers"
+	"github.com/google/nixery/server/builder"
+	"github.com/google/nixery/server/config"
+	"github.com/google/nixery/server/layers"
 	log "github.com/sirupsen/logrus"
 )
 

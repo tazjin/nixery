@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/nixery/layers"
+	"github.com/google/nixery/server/layers"
 	log "github.com/sirupsen/logrus"
 )
 

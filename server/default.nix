@@ -19,7 +19,7 @@ buildGoPackage {
   goDeps = ./go-deps.nix;
   src = ./.;
 
-  goPackagePath = "github.com/google/nixery";
+  goPackagePath = "github.com/google/nixery/server";
 
   # Enable checks and configure check-phase to include vet:
   doCheck = true;
