@@ -19,13 +19,22 @@
 with pkgs;
 
 rec {
+  # Hash of all Nixery sources - this is used as the Nixery version in
+  # builds to distinguish errors between deployed versions, see
+  # server/logs.go for details.
+  nixery-src-hash = pkgs.runCommand "nixery-src-hash" {} ''
+    echo ${./.} | grep -Eo '[a-z0-9]{32}' > $out
+  '';
+
   # Go implementation of the Nixery server which implements the
   # container registry interface.
   #
   # Users will usually not want to use this directly, instead see the
   # 'nixery' derivation below, which automatically includes runtime
   # data dependencies.
-  nixery-server = callPackage ./server { };
+  nixery-server = callPackage ./server {
+    srcHash = nixery-src-hash;
+  };
 
   # Implementation of the Nix image building logic
   nixery-build-image = import ./build-image { inherit pkgs; };

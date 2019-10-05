@@ -27,7 +27,6 @@ type reportLocation struct {
 
 var nixeryContext = serviceContext{
 	Service: "nixery",
-	Version: "TODO(tazjin)", // angry?
 }
 
 // isError determines whether an entry should be logged as an error
@@ -63,6 +62,7 @@ func (f stackdriverFormatter) Format(e *log.Entry) ([]byte, error) {
 }
 
 func init() {
+	nixeryContext.Version = version
 	log.SetReportCaller(true)
 	log.SetFormatter(stackdriverFormatter{})
 }

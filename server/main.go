@@ -47,6 +47,10 @@ import (
 // https://docs.docker.com/registry/spec/manifest-v2-2/
 const manifestMediaType string = "application/vnd.docker.distribution.manifest.v2+json"
 
+// This variable will be initialised during the build process and set
+// to the hash of the entire Nixery source tree.
+var version string = "devel"
+
 // Regexes matching the V2 Registry API routes. This only includes the
 // routes required for serving images, since pushing and other such
 // functionality is not available.
@@ -243,7 +247,7 @@ func main() {
 		Pop:    pop,
 	}
 
-	log.Printf("Starting Nixery on port %s\n", cfg.Port)
+	log.Printf("Starting Nixery (version %s) on port %s\n", version, cfg.Port)
 
 	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{

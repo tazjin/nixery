@@ -12,21 +12,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{ buildGoPackage, lib }:
+{ buildGoPackage, go, lib, srcHash }:
 
-buildGoPackage {
+buildGoPackage rec {
   name = "nixery-server";
   goDeps = ./go-deps.nix;
   src = ./.;
 
   goPackagePath = "github.com/google/nixery/server";
-
-  # Enable checks and configure check-phase to include vet:
   doCheck = true;
-  preCheck = ''
-    for pkg in $(getGoDirs ""); do
-      buildGoDir vet "$pkg"
-    done
+
+  # The following phase configurations work around the overengineered
+  # Nix build configuration for Go.
+  #
+  # All I want this to do is produce a binary in the standard Nix
+  # output path, so pretty much all the phases except for the initial
+  # configuration of the "dependency forest" in $GOPATH have been
+  # overridden.
+  #
+  # This is necessary because the upstream builder does wonky things
+  # with the build arguments to the compiler, but I need to set some
+  # complex flags myself
+
+  outputs = [ "out" ];
+  preConfigure = "bin=$out";
+  buildPhase = ''
+    runHook preBuild
+    runHook renameImport
+
+    export GOBIN="$out/bin"
+    go install -ldflags "-X main.version=$(cat ${srcHash})" ${goPackagePath}
+  '';
+
+  fixupPhase = ''
+    remove-references-to -t ${go} $out/bin/server
+  '';
+
+  checkPhase = ''
+    go vet ${goPackagePath}
+    go test ${goPackagePath}
   '';
 
   meta = {
