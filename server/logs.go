@@ -40,16 +40,46 @@ func isError(e *log.Entry) bool {
 		e.HasCaller()
 }
 
+// logSeverity formats the entry's severity into a format compatible
+// with Stackdriver Logging.
+//
+// The two formats that are being mapped do not have an equivalent set
+// of severities/levels, so the mapping is somewhat arbitrary for a
+// handful of them.
+//
+// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogSeverity
+func logSeverity(l log.Level) string {
+	switch l {
+	case log.TraceLevel:
+		return "DEBUG"
+	case log.DebugLevel:
+		return "DEBUG"
+	case log.InfoLevel:
+		return "INFO"
+	case log.WarnLevel:
+		return "WARNING"
+	case log.ErrorLevel:
+		return "ERROR"
+	case log.FatalLevel:
+		return "CRITICAL"
+	case log.PanicLevel:
+		return "EMERGENCY"
+	default:
+		return "DEFAULT"
+	}
+}
+
 func (f stackdriverFormatter) Format(e *log.Entry) ([]byte, error) {
 	msg := e.Data
 	msg["serviceContext"] = &nixeryContext
 	msg["message"] = &e.Message
 	msg["eventTime"] = &e.Time
+	msg["severity"] = logSeverity(e.Level)
 
 	if isError(e) {
 		loc := reportLocation{
-			FilePath: e.Caller.File,
-			LineNumber: e.Caller.Line,
+			FilePath:     e.Caller.File,
+			LineNumber:   e.Caller.Line,
 			FunctionName: e.Caller.Function,
 		}
 		msg["context"] = &loc
