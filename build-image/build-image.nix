@@ -39,6 +39,7 @@ let
     fromJSON
     hasAttr
     length
+    match
     readFile
     toFile
     toJSON;
