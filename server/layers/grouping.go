@@ -172,8 +172,14 @@ func (c *closure) ID() int64 {
 
 var nixRegexp = regexp.MustCompile(`^/nix/store/[a-z0-9]+-`)
 
+// PackageFromPath returns the name of a Nix package based on its
+// output store path.
+func PackageFromPath(path string) string {
+	return nixRegexp.ReplaceAllString(path, "")
+}
+
 func (c *closure) DOTID() string {
-	return nixRegexp.ReplaceAllString(c.Path, "")
+	return PackageFromPath(c.Path)
 }
 
 // bigOrPopular checks whether this closure should be considered for
@@ -321,7 +327,10 @@ func dominate(budget int, graph *simple.DirectedGraph) []Layer {
 	})
 
 	if len(layers) > budget {
-		log.Printf("Ideal image has %v layers, but budget is %v\n", len(layers), budget)
+		log.WithFields(log.Fields{
+			"layers": len(layers),
+			"budget": budget,
+		}).Info("ideal image exceeds layer budget")
 	}
 
 	for len(layers) > budget {

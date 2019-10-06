@@ -143,14 +143,17 @@ func convenienceNames(packages []string) []string {
 
 // logNix logs each output line from Nix. It runs in a goroutine per
 // output channel that should be live-logged.
-func logNix(name string, r io.ReadCloser) {
+func logNix(image, cmd string, r io.ReadCloser) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		log.Printf("\x1b[31m[nix - %s]\x1b[39m %s\n", name, scanner.Text())
+		log.WithFields(log.Fields{
+			"image": image,
+			"cmd":   cmd,
+		}).Info("[nix] " + scanner.Text())
 	}
 }
 
-func callNix(program string, name string, args []string) ([]byte, error) {
+func callNix(program, image string, args []string) ([]byte, error) {
 	cmd := exec.Command(program, args...)
 
 	outpipe, err := cmd.StdoutPipe()
@@ -162,24 +165,45 @@ func callNix(program string, name string, args []string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	go logNix(name, errpipe)
+	go logNix(program, image, errpipe)
 
 	if err = cmd.Start(); err != nil {
-		log.Printf("Error starting %s: %s\n", program, err)
+		log.WithFields(log.Fields{
+			"image": image,
+			"cmd":   program,
+			"error": err,
+		}).Error("error starting command")
+
 		return nil, err
 	}
-	log.Printf("Invoked Nix build (%s) for '%s'\n", program, name)
+
+	log.WithFields(log.Fields{
+		"cmd":   program,
+		"image": image,
+	}).Info("invoked Nix build")
 
 	stdout, _ := ioutil.ReadAll(outpipe)
 
 	if err = cmd.Wait(); err != nil {
-		log.Printf("%s execution error: %s\nstdout: %s\n", program, err, stdout)
+		log.WithFields(log.Fields{
+			"image":  image,
+			"cmd":    program,
+			"error":  err,
+			"stdout": stdout,
+		}).Info("Nix execution failed")
+
 		return nil, err
 	}
 
 	resultFile := strings.TrimSpace(string(stdout))
 	buildOutput, err := ioutil.ReadFile(resultFile)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"image": image,
+			"file":  resultFile,
+			"error": err,
+		}).Info("failed to read Nix result file")
+
 		return nil, err
 	}
 
@@ -209,10 +233,14 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 
 	output, err := callNix("nixery-build-image", image.Name, args)
 	if err != nil {
-		log.Printf("failed to call nixery-build-image: %s\n", err)
+		// granular error logging is performed in callNix already
 		return nil, err
 	}
-	log.Printf("Finished image preparation for '%s' via Nix\n", image.Name)
+
+	log.WithFields(log.Fields{
+		"image": image.Name,
+		"tag":   image.Tag,
+	}).Info("finished image preparation via Nix")
 
 	var result ImageResult
 	err = json.Unmarshal(output, &result)
@@ -243,15 +271,26 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 		if entry, cached := layerFromCache(ctx, s, l.Hash()); cached {
 			entries = append(entries, *entry)
 		} else {
+			lh := l.Hash()
 			lw := func(w io.Writer) error {
 				return tarStorePaths(&l, w)
 			}
 
-			entry, err := uploadHashLayer(ctx, s, l.Hash(), lw)
+			entry, err := uploadHashLayer(ctx, s, lh, lw)
 			if err != nil {
 				return nil, err
 			}
 			entry.MergeRating = l.MergeRating
+
+			var pkgs []string
+			for _, p := range l.Contents {
+				pkgs = append(pkgs, layers.PackageFromPath(p))
+			}
+
+			log.WithFields(log.Fields{
+				"layer":    lh,
+				"packages": pkgs,
+			}).Info("created image layer")
 
 			go cacheLayer(ctx, s, l.Hash(), *entry)
 			entries = append(entries, *entry)
@@ -264,7 +303,13 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 	entry, err := uploadHashLayer(ctx, s, slkey, func(w io.Writer) error {
 		f, err := os.Open(result.SymlinkLayer.Path)
 		if err != nil {
-			log.Printf("failed to upload symlink layer '%s': %s\n", slkey, err)
+			log.WithFields(log.Fields{
+				"image": image.Name,
+				"tag":   image.Tag,
+				"error": err,
+				"layer": slkey,
+			}).Error("failed to upload symlink layer")
+
 			return err
 		}
 		defer f.Close()
@@ -319,7 +364,12 @@ func renameObject(ctx context.Context, s *State, old, new string) error {
 	// renaming/moving them, hence a deletion call afterwards is
 	// required.
 	if err = s.Bucket.Object(old).Delete(ctx); err != nil {
-		log.Printf("failed to delete renamed object '%s': %s\n", old, err)
+		log.WithFields(log.Fields{
+			"new":   new,
+			"old":   old,
+			"error": err,
+		}).Warn("failed to delete renamed object")
+
 		// this error should not break renaming and is not returned
 	}
 
@@ -371,12 +421,19 @@ func uploadHashLayer(ctx context.Context, s *State, key string, lw layerWriter) 
 
 	err := lw(multi)
 	if err != nil {
-		log.Printf("failed to create and upload layer '%s': %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to create and upload layer")
+
 		return nil, err
 	}
 
 	if err = sw.Close(); err != nil {
-		log.Printf("failed to upload layer '%s' to staging: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to upload layer to staging")
 	}
 
 	sha256sum := fmt.Sprintf("%x", shasum.Sum([]byte{}))
@@ -385,12 +442,21 @@ func uploadHashLayer(ctx context.Context, s *State, key string, lw layerWriter) 
 	// remains is to move it to the correct location and cache it.
 	err = renameObject(ctx, s, "staging/"+key, "layers/"+sha256sum)
 	if err != nil {
-		log.Printf("failed to move layer '%s' from staging: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to move layer from staging")
+
 		return nil, err
 	}
 
 	size := counter.count
-	log.Printf("Uploaded layer sha256:%s (%v bytes written)", sha256sum, size)
+
+	log.WithFields(log.Fields{
+		"layer":  key,
+		"sha256": sha256sum,
+		"size":   size,
+	}).Info("uploaded layer")
 
 	entry := manifest.Entry{
 		Digest: "sha256:" + sha256sum,
@@ -436,7 +502,12 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 	}
 
 	if _, err = uploadHashLayer(ctx, s, c.SHA256, lw); err != nil {
-		log.Printf("failed to upload config for %s: %s\n", image.Name, err)
+		log.WithFields(log.Fields{
+			"image": image.Name,
+			"tag":   image.Tag,
+			"error": err,
+		}).Error("failed to upload config")
+
 		return nil, err
 	}
 

@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	"github.com/google/nixery/server/layers"
-	log "github.com/sirupsen/logrus"
 )
 
 // Create a new tarball from each of the paths in the list and write the tarball
@@ -33,7 +32,6 @@ func tarStorePaths(l *layers.Layer, w io.Writer) error {
 		return err
 	}
 
-	log.Printf("Created layer for '%s'\n", l.Hash())
 	return nil
 }
 

@@ -68,7 +68,9 @@ var (
 // The Docker client is known to follow redirects, but this might not be true
 // for all other registry clients.
 func constructLayerUrl(cfg *config.Config, digest string) (string, error) {
-	log.Printf("Redirecting layer '%s' request to bucket '%s'\n", digest, cfg.Bucket)
+	log.WithFields(log.Fields{
+		"layer": digest,
+	}).Info("redirecting layer request to bucket")
 	object := "layers/" + digest
 
 	if cfg.Signing != nil {
@@ -90,13 +92,18 @@ func constructLayerUrl(cfg *config.Config, digest string) (string, error) {
 func prepareBucket(ctx context.Context, cfg *config.Config) *storage.BucketHandle {
 	client, err := storage.NewClient(ctx)
 	if err != nil {
-		log.Fatalln("Failed to set up Cloud Storage client:", err)
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Fatal("failed to set up Cloud Storage client")
 	}
 
 	bkt := client.Bucket(cfg.Bucket)
 
 	if _, err := bkt.Attrs(ctx); err != nil {
-		log.Fatalln("Could not access configured bucket", err)
+		log.WithFields(log.Fields{
+			"error":  err,
+			"bucket": cfg.Bucket,
+		}).Fatal("could not access configured bucket")
 	}
 
 	return bkt
@@ -169,13 +176,24 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(manifestMatches) == 3 {
 		imageName := manifestMatches[1]
 		imageTag := manifestMatches[2]
-		log.Printf("Requesting manifest for image %q at tag %q", imageName, imageTag)
+
+		log.WithFields(log.Fields{
+			"image": imageName,
+			"tag":   imageTag,
+		}).Info("requesting image manifest")
+
 		image := builder.ImageFromName(imageName, imageTag)
 		buildResult, err := builder.BuildImage(h.ctx, h.state, &image)
 
 		if err != nil {
 			writeError(w, 500, "UNKNOWN", "image build failure")
-			log.Println("Failed to build image manifest", err)
+
+			log.WithFields(log.Fields{
+				"image": imageName,
+				"tag":   imageTag,
+				"error": err,
+			}).Error("failed to build image manifest")
+
 			return
 		}
 
@@ -184,7 +202,13 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if buildResult.Error == "not_found" {
 			s := fmt.Sprintf("Could not find Nix packages: %v", buildResult.Pkgs)
 			writeError(w, 404, "MANIFEST_UNKNOWN", s)
-			log.Println(s)
+
+			log.WithFields(log.Fields{
+				"image":    imageName,
+				"tag":      imageTag,
+				"packages": buildResult.Pkgs,
+			}).Error("could not find Nix packages")
+
 			return
 		}
 
@@ -205,7 +229,11 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		url, err := constructLayerUrl(&h.state.Cfg, digest)
 
 		if err != nil {
-			log.Printf("Failed to sign GCS URL: %s\n", err)
+			log.WithFields(log.Fields{
+				"layer": digest,
+				"error": err,
+			}).Error("failed to sign GCS URL")
+
 			writeError(w, 500, "UNKNOWN", "could not serve layer")
 			return
 		}
@@ -215,28 +243,38 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Unsupported registry route: %s\n", r.RequestURI)
+	log.WithFields(log.Fields{
+		"uri": r.RequestURI,
+	}).Info("unsupported registry route")
+
 	w.WriteHeader(404)
 }
 
 func main() {
 	cfg, err := config.FromEnv()
 	if err != nil {
-		log.Fatalln("Failed to load configuration", err)
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Fatal("failed to load configuration")
 	}
 
 	ctx := context.Background()
 	bucket := prepareBucket(ctx, &cfg)
 	cache, err := builder.NewCache()
 	if err != nil {
-		log.Fatalln("Failed to instantiate build cache", err)
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Fatal("failed to instantiate build cache")
 	}
 
 	var pop layers.Popularity
 	if cfg.PopUrl != "" {
 		pop, err = downloadPopularity(cfg.PopUrl)
 		if err != nil {
-			log.Fatalln("Failed to fetch popularity information", err)
+			log.WithFields(log.Fields{
+				"error":  err,
+				"popURL": cfg.PopUrl,
+			}).Fatal("failed to fetch popularity information")
 		}
 	}
 
