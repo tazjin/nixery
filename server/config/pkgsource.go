@@ -132,9 +132,7 @@ func (p *PkgsPath) CacheKey(pkgs []string, tag string) string {
 // specified, the Nix code will default to a recent NixOS channel.
 func pkgSourceFromEnv() (PkgSource, error) {
 	if channel := os.Getenv("NIXERY_CHANNEL"); channel != "" {
-		log.WithFields(log.Fields{
-			"channel": channel,
-		}).Info("using Nix package set from Nix channel or commit")
+		log.WithField("channel", channel).Info("using Nix package set from Nix channel or commit")
 
 		return &NixChannel{
 			channel: channel,
@@ -142,9 +140,7 @@ func pkgSourceFromEnv() (PkgSource, error) {
 	}
 
 	if git := os.Getenv("NIXERY_PKGS_REPO"); git != "" {
-		log.WithFields(log.Fields{
-			"repo": git,
-		}).Info("using NIx package set from git repository")
+		log.WithField("repo", git).Info("using NIx package set from git repository")
 
 		return &GitSource{
 			repository: git,
@@ -152,9 +148,7 @@ func pkgSourceFromEnv() (PkgSource, error) {
 	}
 
 	if path := os.Getenv("NIXERY_PKGS_PATH"); path != "" {
-		log.WithFields(log.Fields{
-			"path": path,
-		}).Info("using Nix package set at local path")
+		log.WithField("path", path).Info("using Nix package set at local path")
 
 		return &PkgsPath{
 			path: path,
