@@ -32,14 +32,20 @@ func signingOptsFromEnv() *storage.SignedURLOptions {
 	id := os.Getenv("GCS_SIGNING_ACCOUNT")
 
 	if path == "" || id == "" {
-		log.Println("GCS URL signing disabled")
+		log.Info("GCS URL signing disabled")
 		return nil
 	}
 
-	log.Printf("GCS URL signing enabled with account %q\n", id)
+	log.WithFields(log.Fields{
+		"account": id,
+	}).Info("GCS URL signing enabled")
+
 	k, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Fatalf("Failed to read GCS signing key: %s\n", err)
+		log.WithFields(log.Fields{
+			"file":  path,
+			"error": err,
+		}).Fatal("failed to read GCS signing key")
 	}
 
 	return &storage.SignedURLOptions{
@@ -52,7 +58,10 @@ func signingOptsFromEnv() *storage.SignedURLOptions {
 func getConfig(key, desc, def string) string {
 	value := os.Getenv(key)
 	if value == "" && def == "" {
-		log.Fatalln(desc + " must be specified")
+		log.WithFields(log.Fields{
+			"option":      key,
+			"description": desc,
+		}).Fatal("missing required configuration envvar")
 	} else if value == "" {
 		return def
 	}

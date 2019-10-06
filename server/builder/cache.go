@@ -60,15 +60,25 @@ func (c *LocalCache) manifestFromLocalCache(key string) (json.RawMessage, bool) 
 
 	f, err := os.Open(c.mdir + key)
 	if err != nil {
-		// TODO(tazjin): Once log levels are available, this
-		// might warrant a debug log.
+		// This is a debug log statement because failure to
+		// read the manifest key is currently expected if it
+		// is not cached.
+		log.WithFields(log.Fields{
+			"manifest": key,
+			"error":    err,
+		}).Debug("failed to read manifest from local cache")
+
 		return nil, false
 	}
 	defer f.Close()
 
 	m, err := ioutil.ReadAll(f)
 	if err != nil {
-		log.Printf("Failed to read manifest '%s' from local cache: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"manifest": key,
+			"error":    err,
+		}).Error("failed to read manifest from local cache")
+
 		return nil, false
 	}
 
@@ -86,7 +96,10 @@ func (c *LocalCache) localCacheManifest(key string, m json.RawMessage) {
 
 	err := ioutil.WriteFile(c.mdir+key, []byte(m), 0644)
 	if err != nil {
-		log.Printf("Failed to locally cache manifest for '%s': %s\n", key, err)
+		log.WithFields(log.Fields{
+			"manifest": key,
+			"error":    err,
+		}).Error("failed to locally cache manifest")
 	}
 }
 
@@ -123,18 +136,29 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 
 	r, err := obj.NewReader(ctx)
 	if err != nil {
-		log.Printf("Failed to retrieve manifest '%s' from cache: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"manifest": key,
+			"error":    err,
+		}).Error("failed to retrieve manifest from bucket cache")
+
 		return nil, false
 	}
 	defer r.Close()
 
 	m, err := ioutil.ReadAll(r)
 	if err != nil {
-		log.Printf("Failed to read cached manifest for '%s': %s\n", key, err)
+		log.WithFields(log.Fields{
+			"manifest": key,
+			"error":    err,
+		}).Error("failed to read cached manifest from bucket")
+
+		return nil, false
 	}
 
 	go s.Cache.localCacheManifest(key, m)
-	log.Printf("Retrieved manifest for sha1:%s from GCS\n", key)
+	log.WithFields(log.Fields{
+		"manifest": key,
+	}).Info("retrieved manifest from GCS")
 
 	return json.RawMessage(m), true
 }
@@ -149,16 +173,27 @@ func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage)
 
 	size, err := io.Copy(w, r)
 	if err != nil {
-		log.Printf("failed to cache manifest sha1:%s: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"manifest": key,
+			"error":    err,
+		}).Error("failed to cache manifest to GCS")
+
 		return
 	}
 
 	if err = w.Close(); err != nil {
-		log.Printf("failed to cache manifest sha1:%s: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"manifest": key,
+			"error":    err,
+		}).Error("failed to cache manifest to GCS")
+
 		return
 	}
 
-	log.Printf("Cached manifest sha1:%s (%v bytes written)\n", key, size)
+	log.WithFields(log.Fields{
+		"manifest": key,
+		"size":     size,
+	}).Info("cached manifest to GCS")
 }
 
 // Retrieve a layer build from the cache, first checking the local
@@ -176,7 +211,11 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 
 	r, err := obj.NewReader(ctx)
 	if err != nil {
-		log.Printf("Failed to retrieve layer build '%s' from cache: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to retrieve cached layer from GCS")
+
 		return nil, false
 	}
 	defer r.Close()
@@ -184,14 +223,22 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 	jb := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(jb, r)
 	if err != nil {
-		log.Printf("Failed to read layer build '%s' from cache: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to read cached layer from GCS")
+
 		return nil, false
 	}
 
 	var entry manifest.Entry
 	err = json.Unmarshal(jb.Bytes(), &entry)
 	if err != nil {
-		log.Printf("Failed to unmarshal layer build '%s' from cache: %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to unmarshal cached layer")
+
 		return nil, false
 	}
 
@@ -210,12 +257,20 @@ func cacheLayer(ctx context.Context, s *State, key string, entry manifest.Entry)
 
 	_, err := io.Copy(w, bytes.NewReader(j))
 	if err != nil {
-		log.Printf("failed to cache build '%s': %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to cache layer")
+
 		return
 	}
 
 	if err = w.Close(); err != nil {
-		log.Printf("failed to cache build '%s': %s\n", key, err)
+		log.WithFields(log.Fields{
+			"layer": key,
+			"error": err,
+		}).Error("failed to cache layer")
+
 		return
 	}
 }
