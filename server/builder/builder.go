@@ -168,11 +168,10 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	go logNix(program, image, errpipe)
 
 	if err = cmd.Start(); err != nil {
-		log.WithFields(log.Fields{
+		log.WithError(err).WithFields(log.Fields{
 			"image": image,
 			"cmd":   program,
-			"error": err,
-		}).Error("error starting command")
+		}).Error("error invoking Nix")
 
 		return nil, err
 	}
@@ -185,12 +184,11 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	stdout, _ := ioutil.ReadAll(outpipe)
 
 	if err = cmd.Wait(); err != nil {
-		log.WithFields(log.Fields{
+		log.WithError(err).WithFields(log.Fields{
 			"image":  image,
 			"cmd":    program,
-			"error":  err,
 			"stdout": stdout,
-		}).Info("Nix execution failed")
+		}).Info("failed to invoke Nix")
 
 		return nil, err
 	}
@@ -198,10 +196,9 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	resultFile := strings.TrimSpace(string(stdout))
 	buildOutput, err := ioutil.ReadFile(resultFile)
 	if err != nil {
-		log.WithFields(log.Fields{
+		log.WithError(err).WithFields(log.Fields{
 			"image": image,
 			"file":  resultFile,
-			"error": err,
 		}).Info("failed to read Nix result file")
 
 		return nil, err
@@ -303,10 +300,9 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 	entry, err := uploadHashLayer(ctx, s, slkey, func(w io.Writer) error {
 		f, err := os.Open(result.SymlinkLayer.Path)
 		if err != nil {
-			log.WithFields(log.Fields{
+			log.WithError(err).WithFields(log.Fields{
 				"image": image.Name,
 				"tag":   image.Tag,
-				"error": err,
 				"layer": slkey,
 			}).Error("failed to upload symlink layer")
 
@@ -364,10 +360,9 @@ func renameObject(ctx context.Context, s *State, old, new string) error {
 	// renaming/moving them, hence a deletion call afterwards is
 	// required.
 	if err = s.Bucket.Object(old).Delete(ctx); err != nil {
-		log.WithFields(log.Fields{
-			"new":   new,
-			"old":   old,
-			"error": err,
+		log.WithError(err).WithFields(log.Fields{
+			"new": new,
+			"old": old,
 		}).Warn("failed to delete renamed object")
 
 		// this error should not break renaming and is not returned
@@ -421,19 +416,15 @@ func uploadHashLayer(ctx context.Context, s *State, key string, lw layerWriter) 
 
 	err := lw(multi)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"layer": key,
-			"error": err,
-		}).Error("failed to create and upload layer")
+		log.WithError(err).WithField("layer", key).
+			Error("failed to create and upload layer")
 
 		return nil, err
 	}
 
 	if err = sw.Close(); err != nil {
-		log.WithFields(log.Fields{
-			"layer": key,
-			"error": err,
-		}).Error("failed to upload layer to staging")
+		log.WithError(err).WithField("layer", key).
+			Error("failed to upload layer to staging")
 	}
 
 	sha256sum := fmt.Sprintf("%x", shasum.Sum([]byte{}))
@@ -442,10 +433,8 @@ func uploadHashLayer(ctx context.Context, s *State, key string, lw layerWriter) 
 	// remains is to move it to the correct location and cache it.
 	err = renameObject(ctx, s, "staging/"+key, "layers/"+sha256sum)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"layer": key,
-			"error": err,
-		}).Error("failed to move layer from staging")
+		log.WithError(err).WithField("layer", key).
+			Error("failed to move layer from staging")
 
 		return nil, err
 	}
@@ -478,7 +467,7 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 
 	imageResult, err := prepareImage(s, image)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare image '%s': %s", image.Name, err)
+		return nil, err
 	}
 
 	if imageResult.Error != "" {
@@ -502,10 +491,9 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 	}
 
 	if _, err = uploadHashLayer(ctx, s, c.SHA256, lw); err != nil {
-		log.WithFields(log.Fields{
+		log.WithError(err).WithFields(log.Fields{
 			"image": image.Name,
 			"tag":   image.Tag,
-			"error": err,
 		}).Error("failed to upload config")
 
 		return nil, err

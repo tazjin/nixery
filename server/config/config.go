@@ -36,16 +36,11 @@ func signingOptsFromEnv() *storage.SignedURLOptions {
 		return nil
 	}
 
-	log.WithFields(log.Fields{
-		"account": id,
-	}).Info("GCS URL signing enabled")
+	log.WithField("account", id).Info("GCS URL signing enabled")
 
 	k, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"file":  path,
-			"error": err,
-		}).Fatal("failed to read GCS signing key")
+		log.WithError(err).WithField("file", path).Fatal("failed to read GCS signing key")
 	}
 
 	return &storage.SignedURLOptions{
