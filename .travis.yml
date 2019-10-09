@@ -26,7 +26,7 @@ script:
     docker run -d -p 8080:8080 --name nixery \
       -v ${PWD}/test-files:/var/nixery \
       -e PORT=8080 \
-      -e BUCKET=nixery-layers \
+      -e BUCKET=nixery-ci-tests \
       -e GOOGLE_CLOUD_PROJECT=nixery \
       -e GOOGLE_APPLICATION_CREDENTIALS=/var/nixery/key.json \
       -e GCS_SIGNING_ACCOUNT="${GCS_SIGNING_ACCOUNT}" \
