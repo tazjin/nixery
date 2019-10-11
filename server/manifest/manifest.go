@@ -29,9 +29,10 @@ type Entry struct {
 	Size      int64  `json:"size"`
 	Digest    string `json:"digest"`
 
-	// This field is internal to Nixery and not part of the
+	// These fields are internal to Nixery and not part of the
 	// serialised entry.
 	MergeRating uint64 `json:"-"`
+	TarHash     string `json:",omitempty"`
 }
 
 type manifest struct {
@@ -102,9 +103,10 @@ func Manifest(layers []Entry) (json.RawMessage, ConfigLayer) {
 
 	hashes := make([]string, len(layers))
 	for i, l := range layers {
+		hashes[i] = l.TarHash
 		l.MediaType = layerType
+		l.TarHash = ""
 		layers[i] = l
-		hashes[i] = l.Digest
 	}
 
 	c := configLayer(hashes)

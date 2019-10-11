@@ -117,9 +117,10 @@ type ImageResult struct {
 	// These fields are populated in case of success
 	Graph        layers.RuntimeGraph `json:"runtimeGraph"`
 	SymlinkLayer struct {
-		Size   int    `json:"size"`
-		SHA256 string `json:"sha256"`
-		Path   string `json:"path"`
+		Size     int    `json:"size"`
+		TarHash  string `json:"tarHash"`
+		GzipHash string `json:"gzipHash"`
+		Path     string `json:"path"`
 	} `json:"symlinkLayer"`
 }
 
@@ -269,8 +270,18 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 			entries = append(entries, *entry)
 		} else {
 			lh := l.Hash()
+
+			// While packing store paths, the SHA sum of
+			// the uncompressed layer is computed and
+			// written to `tarhash`.
+			//
+			// TODO(tazjin): Refactor this to make the
+			// flow of data cleaner.
+			var tarhash string
 			lw := func(w io.Writer) error {
-				return packStorePaths(&l, w)
+				var err error
+				tarhash, err = packStorePaths(&l, w)
+				return err
 			}
 
 			entry, err := uploadHashLayer(ctx, s, lh, lw)
@@ -278,6 +289,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 				return nil, err
 			}
 			entry.MergeRating = l.MergeRating
+			entry.TarHash = tarhash
 
 			var pkgs []string
 			for _, p := range l.Contents {
@@ -287,6 +299,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 			log.WithFields(log.Fields{
 				"layer":    lh,
 				"packages": pkgs,
+				"tarhash":  tarhash,
 			}).Info("created image layer")
 
 			go cacheLayer(ctx, s, l.Hash(), *entry)
@@ -296,7 +309,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 
 	// Symlink layer (built in the first Nix build) needs to be
 	// included here manually:
-	slkey := result.SymlinkLayer.SHA256
+	slkey := result.SymlinkLayer.GzipHash
 	entry, err := uploadHashLayer(ctx, s, slkey, func(w io.Writer) error {
 		f, err := os.Open(result.SymlinkLayer.Path)
 		if err != nil {
@@ -318,6 +331,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 		return nil, err
 	}
 
+	entry.TarHash = "sha256:" + result.SymlinkLayer.TarHash
 	go cacheLayer(ctx, s, slkey, *entry)
 	entries = append(entries, *entry)
 

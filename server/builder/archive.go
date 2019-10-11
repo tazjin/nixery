@@ -10,6 +10,8 @@ package builder
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/sha256"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,26 +21,31 @@ import (
 
 // Create a new compressed tarball from each of the paths in the list
 // and write it to the supplied writer.
-func packStorePaths(l *layers.Layer, w io.Writer) error {
+//
+// The uncompressed tarball is hashed because image manifests must
+// contain both the hashes of compressed and uncompressed layers.
+func packStorePaths(l *layers.Layer, w io.Writer) (string, error) {
+	shasum := sha256.New()
 	gz := gzip.NewWriter(w)
-	t := tar.NewWriter(gz)
+	multi := io.MultiWriter(shasum, gz)
+	t := tar.NewWriter(multi)
 
 	for _, path := range l.Contents {
 		err := filepath.Walk(path, tarStorePath(t))
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	if err := t.Close(); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := gz.Close(); err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return fmt.Sprintf("sha256:%x", shasum.Sum([]byte{})), nil
 }
 
 func tarStorePath(w *tar.Writer) filepath.WalkFunc {
