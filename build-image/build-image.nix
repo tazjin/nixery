@@ -137,11 +137,14 @@ let
   symlinkLayerMeta = fromJSON (readFile (runCommand "symlink-layer-meta.json" {
     buildInputs = with pkgs; [ coreutils jq openssl ];
   }''
-    layerSha256=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
+    gzipHash=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
+    tarHash=$(cat ${symlinkLayer} | gzip -d | sha256sum | cut -d ' ' -f1)
     layerSize=$(stat --printf '%s' ${symlinkLayer})
 
-    jq -n -c --arg sha256 $layerSha256 --arg size $layerSize --arg path ${symlinkLayer} \
-      '{ size: ($size | tonumber), sha256: $sha256, path: $path }' >> $out
+    jq -n -c --arg gzipHash $gzipHash --arg tarHash $tarHash --arg size $layerSize \
+      --arg path ${symlinkLayer} \
+      '{ size: ($size | tonumber), tarHash: $tarHash, gzipHash: $gzipHash, path: $path }' \
+      >> $out
   ''));
 
   # Final output structure returned to Nixery if the build succeeded
