@@ -23,7 +23,7 @@ rec {
   # builds to distinguish errors between deployed versions, see
   # server/logs.go for details.
   nixery-src-hash = pkgs.runCommand "nixery-src-hash" {} ''
-    echo ${./.} | grep -Eo '[a-z0-9]{32}' > $out
+    echo ${./.} | grep -Eo '[a-z0-9]{32}' | head -c 32 > $out
   '';
 
   # Go implementation of the Nixery server which implements the
