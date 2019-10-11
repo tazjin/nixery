@@ -20,6 +20,7 @@ package builder
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -117,10 +118,9 @@ type ImageResult struct {
 	// These fields are populated in case of success
 	Graph        layers.RuntimeGraph `json:"runtimeGraph"`
 	SymlinkLayer struct {
-		Size     int    `json:"size"`
-		TarHash  string `json:"tarHash"`
-		GzipHash string `json:"gzipHash"`
-		Path     string `json:"path"`
+		Size    int    `json:"size"`
+		TarHash string `json:"tarHash"`
+		Path    string `json:"path"`
 	} `json:"symlinkLayer"`
 }
 
@@ -309,9 +309,22 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 
 	// Symlink layer (built in the first Nix build) needs to be
 	// included here manually:
-	slkey := result.SymlinkLayer.GzipHash
+	slkey := result.SymlinkLayer.TarHash
 	entry, err := uploadHashLayer(ctx, s, slkey, func(w io.Writer) error {
 		f, err := os.Open(result.SymlinkLayer.Path)
+		if err != nil {
+			log.WithError(err).WithFields(log.Fields{
+				"image": image.Name,
+				"tag":   image.Tag,
+				"layer": slkey,
+			}).Error("failed to open symlink layer")
+
+			return err
+		}
+		defer f.Close()
+
+		gz := gzip.NewWriter(w)
+		_, err = io.Copy(gz, f)
 		if err != nil {
 			log.WithError(err).WithFields(log.Fields{
 				"image": image.Name,
@@ -321,10 +334,8 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 
 			return err
 		}
-		defer f.Close()
 
-		_, err = io.Copy(w, f)
-		return err
+		return gz.Close()
 	})
 
 	if err != nil {

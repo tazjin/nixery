@@ -126,9 +126,9 @@ let
   # Image layer that contains the symlink forest created above. This
   # must be included in the image to ensure that the filesystem has a
   # useful layout at runtime.
-  symlinkLayer = runCommand "symlink-layer.tar.gz" {} ''
+  symlinkLayer = runCommand "symlink-layer.tar" {} ''
     cp -r ${contentsEnv}/ ./layer
-    tar --transform='s|^\./||' -C layer --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 -czf $out .
+    tar --transform='s|^\./||' -C layer --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 -cf $out .
   '';
 
   # Metadata about the symlink layer which is required for serving it.
@@ -137,14 +137,11 @@ let
   symlinkLayerMeta = fromJSON (readFile (runCommand "symlink-layer-meta.json" {
     buildInputs = with pkgs; [ coreutils jq openssl ];
   }''
-    gzipHash=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
-    tarHash=$(cat ${symlinkLayer} | gzip -d | sha256sum | cut -d ' ' -f1)
+    tarHash=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
     layerSize=$(stat --printf '%s' ${symlinkLayer})
 
-    jq -n -c --arg gzipHash $gzipHash --arg tarHash $tarHash --arg size $layerSize \
-      --arg path ${symlinkLayer} \
-      '{ size: ($size | tonumber), tarHash: $tarHash, gzipHash: $gzipHash, path: $path }' \
-      >> $out
+    jq -n -c --arg tarHash $tarHash --arg size $layerSize --arg path ${symlinkLayer} \
+      '{ size: ($size | tonumber), tarHash: $tarHash, path: $path }' >> $out
   ''));
 
   # Final output structure returned to Nixery if the build succeeded
