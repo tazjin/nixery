@@ -126,9 +126,9 @@ let
   # Image layer that contains the symlink forest created above. This
   # must be included in the image to ensure that the filesystem has a
   # useful layout at runtime.
-  symlinkLayer = runCommand "symlink-layer.tar" {} ''
+  symlinkLayer = runCommand "symlink-layer.tar.gz" {} ''
     cp -r ${contentsEnv}/ ./layer
-    tar --transform='s|^\./||' -C layer --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 -cf $out .
+    tar --transform='s|^\./||' -C layer --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 -czf $out .
   '';
 
   # Metadata about the symlink layer which is required for serving it.

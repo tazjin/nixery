@@ -15,7 +15,7 @@ const (
 
 	// media types
 	manifestType = "application/vnd.docker.distribution.manifest.v2+json"
-	layerType    = "application/vnd.docker.image.rootfs.diff.tar"
+	layerType    = "application/vnd.docker.image.rootfs.diff.tar.gzip"
 	configType   = "application/vnd.docker.container.image.v1+json"
 
 	// image config constants
@@ -102,7 +102,7 @@ func Manifest(layers []Entry) (json.RawMessage, ConfigLayer) {
 
 	hashes := make([]string, len(layers))
 	for i, l := range layers {
-		l.MediaType = "application/vnd.docker.image.rootfs.diff.tar"
+		l.MediaType = layerType
 		layers[i] = l
 		hashes[i] = l.Digest
 	}
