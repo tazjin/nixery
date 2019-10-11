@@ -270,7 +270,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 		} else {
 			lh := l.Hash()
 			lw := func(w io.Writer) error {
-				return tarStorePaths(&l, w)
+				return packStorePaths(&l, w)
 			}
 
 			entry, err := uploadHashLayer(ctx, s, lh, lw)

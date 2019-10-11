@@ -9,6 +9,7 @@ package builder
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,10 +17,11 @@ import (
 	"github.com/google/nixery/server/layers"
 )
 
-// Create a new tarball from each of the paths in the list and write the tarball
-// to the supplied writer.
-func tarStorePaths(l *layers.Layer, w io.Writer) error {
-	t := tar.NewWriter(w)
+// Create a new compressed tarball from each of the paths in the list
+// and write it to the supplied writer.
+func packStorePaths(l *layers.Layer, w io.Writer) error {
+	gz := gzip.NewWriter(w)
+	t := tar.NewWriter(gz)
 
 	for _, path := range l.Contents {
 		err := filepath.Walk(path, tarStorePath(t))
@@ -29,6 +31,10 @@ func tarStorePaths(l *layers.Layer, w io.Writer) error {
 	}
 
 	if err := t.Close(); err != nil {
+		return err
+	}
+
+	if err := gz.Close(); err != nil {
 		return err
 	}
 
