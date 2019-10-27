@@ -18,7 +18,7 @@
 
 with pkgs;
 
-rec {
+let
   # Hash of all Nixery sources - this is used as the Nixery version in
   # builds to distinguish errors between deployed versions, see
   # server/logs.go for details.
@@ -29,13 +29,11 @@ rec {
   # Go implementation of the Nixery server which implements the
   # container registry interface.
   #
-  # Users will usually not want to use this directly, instead see the
-  # 'nixery' derivation below, which automatically includes runtime
-  # data dependencies.
+  # Users should use the nixery-bin derivation below instead.
   nixery-server = callPackage ./server {
     srcHash = nixery-src-hash;
   };
-
+in rec {
   # Implementation of the Nix image building logic
   nixery-build-image = import ./build-image { inherit pkgs; };
 
