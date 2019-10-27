@@ -23,29 +23,33 @@ import (
 
 	"cloud.google.com/go/storage"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/oauth2/google"
 )
 
-// Load (optional) GCS bucket signing data from the GCS_SIGNING_KEY and
-// GCS_SIGNING_ACCOUNT envvars.
+// Configure GCS URL signing in the presence of a service account key
+// (toggled if the user has set GOOGLE_APPLICATION_CREDENTIALS).
 func signingOptsFromEnv() *storage.SignedURLOptions {
-	path := os.Getenv("GCS_SIGNING_KEY")
-	id := os.Getenv("GCS_SIGNING_ACCOUNT")
-
-	if path == "" || id == "" {
-		log.Info("GCS URL signing disabled")
+	path := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	if path == "" {
 		return nil
 	}
 
-	log.WithField("account", id).Info("GCS URL signing enabled")
-
-	k, err := ioutil.ReadFile(path)
+	key, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.WithError(err).WithField("file", path).Fatal("failed to read GCS signing key")
+		log.WithError(err).WithField("file", path).Fatal("failed to read service account key")
 	}
 
+	conf, err := google.JWTConfigFromJSON(key)
+	if err != nil {
+		log.WithError(err).WithField("file", path).Fatal("failed to parse service account key")
+	}
+
+	log.WithField("account", conf.Email).Info("GCS URL signing enabled")
+
 	return &storage.SignedURLOptions{
-		GoogleAccessID: id,
-		PrivateKey:     k,
+		Scheme:         storage.SigningSchemeV4,
+		GoogleAccessID: conf.Email,
+		PrivateKey:     conf.PrivateKey,
 		Method:         "GET",
 	}
 }
