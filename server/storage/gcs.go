@@ -30,10 +30,10 @@ type GCSBackend struct {
 
 // Constructs a new GCS bucket backend based on the configured
 // environment variables.
-func New() (GCSBackend, error) {
+func NewGCSBackend() (*GCSBackend, error) {
 	bucket := os.Getenv("GCS_BUCKET")
 	if bucket == "" {
-		return GCSBackend{}, fmt.Errorf("GCS_BUCKET must be configured for GCS usage")
+		return nil, fmt.Errorf("GCS_BUCKET must be configured for GCS usage")
 	}
 
 	ctx := context.Background()
@@ -46,16 +46,16 @@ func New() (GCSBackend, error) {
 
 	if _, err := handle.Attrs(ctx); err != nil {
 		log.WithError(err).WithField("bucket", bucket).Error("could not access configured bucket")
-		return GCSBackend{}, err
+		return nil, err
 	}
 
 	signing, err := signingOptsFromEnv()
 	if err != nil {
 		log.WithError(err).Error("failed to configure GCS bucket signing")
-		return GCSBackend{}, err
+		return nil, err
 	}
 
-	return GCSBackend{
+	return &GCSBackend{
 		bucket:  bucket,
 		handle:  handle,
 		signing: signing,
@@ -66,7 +66,7 @@ func (b *GCSBackend) Name() string {
 	return "Google Cloud Storage (" + b.bucket + ")"
 }
 
-func (b *GCSBackend) Persist(path string, f func(io.Writer) (string, int, error)) (string, int, error) {
+func (b *GCSBackend) Persist(path string, f func(io.Writer) (string, int64, error)) (string, int64, error) {
 	ctx := context.Background()
 	obj := b.handle.Object(path)
 	w := obj.NewWriter(ctx)
@@ -139,7 +139,7 @@ func (b *GCSBackend) Move(old, new string) error {
 	return nil
 }
 
-func (b *GCSBackend) Serve(digest string, w http.ResponseWriter) error {
+func (b *GCSBackend) ServeLayer(digest string, w http.ResponseWriter) error {
 	url, err := b.constructLayerUrl(digest)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{

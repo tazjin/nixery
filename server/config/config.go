@@ -37,6 +37,13 @@ func getConfig(key, desc, def string) string {
 	return value
 }
 
+// Backend represents the possible storage backend types
+type Backend int
+
+const (
+	GCS = iota
+)
+
 // Config holds the Nixery configuration options.
 type Config struct {
 	Port    string    // Port on which to launch HTTP server
@@ -44,6 +51,7 @@ type Config struct {
 	Timeout string    // Timeout for a single Nix builder (seconds)
 	WebDir  string    // Directory with static web assets
 	PopUrl  string    // URL to the Nix package popularity count
+	Backend Backend   // Storage backend to use for Nixery
 }
 
 func FromEnv() (Config, error) {
@@ -52,11 +60,22 @@ func FromEnv() (Config, error) {
 		return Config{}, err
 	}
 
+	var b Backend
+	switch os.Getenv("NIXERY_STORAGE_BACKEND") {
+	case "gcs":
+		b = GCS
+	default:
+		log.WithField("values", []string{
+			"gcs",
+		}).Fatal("NIXERY_STORAGE_BUCKET must be set to a supported value")
+	}
+
 	return Config{
 		Port:    getConfig("PORT", "HTTP port", ""),
 		Pkgs:    pkgs,
 		Timeout: getConfig("NIX_TIMEOUT", "Nix builder timeout", "60"),
 		WebDir:  getConfig("WEB_DIR", "Static web file dir", ""),
 		PopUrl:  os.Getenv("NIX_POPULARITY_URL"),
+		Backend: b,
 	}, nil
 }
