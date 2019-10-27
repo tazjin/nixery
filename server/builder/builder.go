@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -44,9 +43,6 @@ import (
 // extensibility, the actual number of layers Nixery is "allowed" to
 // use up is set at a lower point.
 const LayerBudget int = 94
-
-// HTTP client to use for direct calls to APIs that are not part of the SDK
-var client = &http.Client{}
 
 // State holds the runtime state that is carried around in Nixery and
 // passed to builder functions.

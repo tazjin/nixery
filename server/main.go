@@ -36,6 +36,7 @@ import (
 	"github.com/google/nixery/server/builder"
 	"github.com/google/nixery/server/config"
 	"github.com/google/nixery/server/layers"
+	"github.com/google/nixery/server/storage"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -196,6 +197,18 @@ func main() {
 		log.WithError(err).Fatal("failed to load configuration")
 	}
 
+	var s storage.Backend
+
+	switch cfg.Backend {
+	case config.GCS:
+		s, err = storage.NewGCSBackend()
+	}
+	if err != nil {
+		log.WithError(err).Fatal("failed to initialise storage backend")
+	}
+
+	log.WithField("backend", s.Name()).Info("initialised storage backend")
+
 	ctx := context.Background()
 	cache, err := builder.NewCache()
 	if err != nil {
@@ -212,9 +225,10 @@ func main() {
 	}
 
 	state := builder.State{
-		Cache: &cache,
-		Cfg:   cfg,
-		Pop:   pop,
+		Cache:   &cache,
+		Cfg:     cfg,
+		Pop:     pop,
+		Storage: s,
 	}
 
 	log.WithFields(log.Fields{

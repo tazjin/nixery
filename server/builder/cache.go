@@ -125,7 +125,7 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 		log.WithError(err).WithFields(log.Fields{
 			"manifest": key,
 			"backend":  s.Storage.Name(),
-		})
+		}).Error("failed to fetch manifest from cache")
 
 		return nil, false
 	}
