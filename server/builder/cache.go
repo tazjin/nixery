@@ -114,24 +114,18 @@ func (c *LocalCache) localCacheLayer(key string, e manifest.Entry) {
 }
 
 // Retrieve a manifest from the cache(s). First the local cache is
-// checked, then the GCS-bucket cache.
+// checked, then the storage backend.
 func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessage, bool) {
 	if m, cached := s.Cache.manifestFromLocalCache(key); cached {
 		return m, true
 	}
 
-	obj := s.Bucket.Object("manifests/" + key)
-
-	// Probe whether the file exists before trying to fetch it.
-	_, err := obj.Attrs(ctx)
+	r, err := s.Storage.Fetch("manifests/" + key)
 	if err != nil {
-		return nil, false
-	}
-
-	r, err := obj.NewReader(ctx)
-	if err != nil {
-		log.WithError(err).WithField("manifest", key).
-			Error("failed to retrieve manifest from bucket cache")
+		log.WithError(err).WithFields(log.Fields{
+			"manifest": key,
+			"backend":  s.Storage.Name(),
+		})
 
 		return nil, false
 	}
@@ -139,8 +133,10 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 
 	m, err := ioutil.ReadAll(r)
 	if err != nil {
-		log.WithError(err).WithField("manifest", key).
-			Error("failed to read cached manifest from bucket")
+		log.WithError(err).WithFields(log.Fields{
+			"manifest": key,
+			"backend":  s.Storage.Name(),
+		}).Error("failed to read cached manifest from storage backend")
 
 		return nil, false
 	}
@@ -155,21 +151,17 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage) {
 	go s.Cache.localCacheManifest(key, m)
 
-	obj := s.Bucket.Object("manifests/" + key)
-	w := obj.NewWriter(ctx)
-	r := bytes.NewReader([]byte(m))
+	path := "manifests/" + key
+	_, size, err := s.Storage.Persist(path, func(w io.Writer) (string, int64, error) {
+		size, err := io.Copy(w, bytes.NewReader([]byte(m)))
+		return "", size, err
+	})
 
-	size, err := io.Copy(w, r)
 	if err != nil {
-		log.WithError(err).WithField("manifest", key).
-			Error("failed to cache manifest to GCS")
-
-		return
-	}
-
-	if err = w.Close(); err != nil {
-		log.WithError(err).WithField("manifest", key).
-			Error("failed to cache manifest to GCS")
+		log.WithError(err).WithFields(log.Fields{
+			"manifest": key,
+			"backend":  s.Storage.Name(),
+		}).Error("failed to cache manifest to storage backend")
 
 		return
 	}
@@ -177,7 +169,8 @@ func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage)
 	log.WithFields(log.Fields{
 		"manifest": key,
 		"size":     size,
-	}).Info("cached manifest to GCS")
+		"backend":  s.Storage.Name(),
+	}).Info("cached manifest to storage backend")
 }
 
 // Retrieve a layer build from the cache, first checking the local
@@ -187,16 +180,12 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 		return entry, true
 	}
 
-	obj := s.Bucket.Object("builds/" + key)
-	_, err := obj.Attrs(ctx)
+	r, err := s.Storage.Fetch("builds/" + key)
 	if err != nil {
-		return nil, false
-	}
-
-	r, err := obj.NewReader(ctx)
-	if err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to retrieve cached layer from GCS")
+		log.WithError(err).WithFields(log.Fields{
+			"layer":   key,
+			"backend": s.Storage.Name(),
+		}).Warn("failed to retrieve cached layer from storage backend")
 
 		return nil, false
 	}
@@ -205,8 +194,10 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 	jb := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(jb, r)
 	if err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to read cached layer from GCS")
+		log.WithError(err).WithFields(log.Fields{
+			"layer":   key,
+			"backend": s.Storage.Name(),
+		}).Error("failed to read cached layer from storage backend")
 
 		return nil, false
 	}
@@ -227,24 +218,19 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 func cacheLayer(ctx context.Context, s *State, key string, entry manifest.Entry) {
 	s.Cache.localCacheLayer(key, entry)
 
-	obj := s.Bucket.Object("builds/" + key)
-
 	j, _ := json.Marshal(&entry)
+	path := "builds/" + key
+	_, _, err := s.Storage.Persist(path, func(w io.Writer) (string, int64, error) {
+		size, err := io.Copy(w, bytes.NewReader(j))
+		return "", size, err
+	})
 
-	w := obj.NewWriter(ctx)
-
-	_, err := io.Copy(w, bytes.NewReader(j))
 	if err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to cache layer")
-
-		return
+		log.WithError(err).WithFields(log.Fields{
+			"layer":   key,
+			"backend": s.Storage.Name(),
+		}).Error("failed to cache layer")
 	}
 
-	if err = w.Close(); err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to cache layer")
-
-		return
-	}
+	return
 }
