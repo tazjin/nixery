@@ -79,15 +79,17 @@ variables:
 * `NIXERY_CHANNEL`: The name of a Nix/NixOS channel to use for building
 * `NIXERY_PKGS_REPO`: URL of a git repository containing a package set (uses
   locally configured SSH/git credentials)
-* `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to use
-  for building
+* `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to
+  use for building
 * `NIX_TIMEOUT`: Number of seconds that any Nix builder is allowed to run
-  (defaults to 60
-* `NIX_POPULARITY_URL`: URL to a file containing popularity data for the package set (see `popcount/`)
-* `GCS_SIGNING_KEY`: A Google service account key (in PEM format) that can be
-  used to sign Cloud Storage URLs
-* `GCS_SIGNING_ACCOUNT`: Google service account ID that the signing key belongs
-  to
+  (defaults to 60)
+* `NIX_POPULARITY_URL`: URL to a file containing popularity data for
+  the package set (see `popcount/`)
+
+If the `GOOGLE_APPLICATION_CREDENTIALS` environment variable is set to a service
+account key, Nixery will also use this key to create [signed URLs][] for layers
+in the storage bucket. This makes it possible to serve layers from a bucket
+without having to make them publicly available.
 
 ## Roadmap
 

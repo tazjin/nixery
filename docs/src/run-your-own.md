@@ -85,14 +85,14 @@ You may set *all* of these:
 
 * `NIX_TIMEOUT`: Number of seconds that any Nix builder is allowed to run
   (defaults to 60)
-* `GCS_SIGNING_KEY`: A Google service account key (in PEM format) that can be
-  used to [sign Cloud Storage URLs][signed-urls]
-* `GCS_SIGNING_ACCOUNT`: Google service account ID that the signing key belongs
-  to
 
 To authenticate to the configured GCS bucket, Nixery uses Google's [Application
 Default Credentials][ADC]. Depending on your environment this may require
 additional configuration.
+
+If the `GOOGLE_APPLICATION_CREDENTIALS` environment is configured, the service
+account's private key will be used to create [signed URLs for
+layers][signed-urls].
 
 ## 4. Deploy Nixery
 
