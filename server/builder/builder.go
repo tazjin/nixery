@@ -28,18 +28,16 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
 
-	"cloud.google.com/go/storage"
 	"github.com/google/nixery/server/config"
 	"github.com/google/nixery/server/layers"
 	"github.com/google/nixery/server/manifest"
+	"github.com/google/nixery/server/storage"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/oauth2/google"
 )
 
 // The maximum number of layers in an image is 125. To allow for
@@ -47,19 +45,16 @@ import (
 // use up is set at a lower point.
 const LayerBudget int = 94
 
-// API scope needed for renaming objects in GCS
-const gcsScope = "https://www.googleapis.com/auth/devstorage.read_write"
-
 // HTTP client to use for direct calls to APIs that are not part of the SDK
 var client = &http.Client{}
 
 // State holds the runtime state that is carried around in Nixery and
 // passed to builder functions.
 type State struct {
-	Bucket *storage.BucketHandle
-	Cache  *LocalCache
-	Cfg    config.Config
-	Pop    layers.Popularity
+	Storage storage.Backend
+	Cache   *LocalCache
+	Cfg     config.Config
+	Pop     layers.Popularity
 }
 
 // Image represents the information necessary for building a container image.
@@ -349,53 +344,6 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 	return entries, nil
 }
 
-// renameObject renames an object in the specified Cloud Storage
-// bucket.
-//
-// The Go API for Cloud Storage does not support renaming objects, but
-// the HTTP API does. The code below makes the relevant call manually.
-func renameObject(ctx context.Context, s *State, old, new string) error {
-	bucket := s.Cfg.Bucket
-
-	creds, err := google.FindDefaultCredentials(ctx, gcsScope)
-	if err != nil {
-		return err
-	}
-
-	token, err := creds.TokenSource.Token()
-	if err != nil {
-		return err
-	}
-
-	// as per https://cloud.google.com/storage/docs/renaming-copying-moving-objects#rename
-	url := fmt.Sprintf(
-		"https://www.googleapis.com/storage/v1/b/%s/o/%s/rewriteTo/b/%s/o/%s",
-		url.PathEscape(bucket), url.PathEscape(old),
-		url.PathEscape(bucket), url.PathEscape(new),
-	)
-
-	req, err := http.NewRequest("POST", url, nil)
-	req.Header.Add("Authorization", "Bearer "+token.AccessToken)
-	_, err = client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	// It seems that 'rewriteTo' copies objects instead of
-	// renaming/moving them, hence a deletion call afterwards is
-	// required.
-	if err = s.Bucket.Object(old).Delete(ctx); err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"new": new,
-			"old": old,
-		}).Warn("failed to delete renamed object")
-
-		// this error should not break renaming and is not returned
-	}
-
-	return nil
-}
-
 // layerWriter is the type for functions that can write a layer to the
 // multiwriter used for uploading & hashing.
 //
@@ -430,41 +378,38 @@ func (b *byteCounter) Write(p []byte) (n int, err error) {
 // The return value is the layer's SHA256 hash, which is used in the
 // image manifest.
 func uploadHashLayer(ctx context.Context, s *State, key string, lw layerWriter) (*manifest.Entry, error) {
-	staging := s.Bucket.Object("staging/" + key)
+	path := "staging/" + key
+	sha256sum, size, err := s.Storage.Persist(path, func(sw io.Writer) (string, int64, error) {
+		// Sets up a "multiwriter" that simultaneously runs both hash
+		// algorithms and uploads to the storage backend.
+		shasum := sha256.New()
+		counter := &byteCounter{}
+		multi := io.MultiWriter(sw, shasum, counter)
 
-	// Sets up a "multiwriter" that simultaneously runs both hash
-	// algorithms and uploads to the bucket
-	sw := staging.NewWriter(ctx)
-	shasum := sha256.New()
-	counter := &byteCounter{}
-	multi := io.MultiWriter(sw, shasum, counter)
+		err := lw(multi)
+		sha256sum := fmt.Sprintf("%x", shasum.Sum([]byte{}))
 
-	err := lw(multi)
+		return sha256sum, counter.count, err
+	})
+
 	if err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to create and upload layer")
+		log.WithError(err).WithFields(log.Fields{
+			"layer":   key,
+			"backend": s.Storage.Name(),
+		}).Error("failed to create and store layer")
 
 		return nil, err
 	}
 
-	if err = sw.Close(); err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to upload layer to staging")
-	}
-
-	sha256sum := fmt.Sprintf("%x", shasum.Sum([]byte{}))
-
 	// Hashes are now known and the object is in the bucket, what
 	// remains is to move it to the correct location and cache it.
-	err = renameObject(ctx, s, "staging/"+key, "layers/"+sha256sum)
+	err = s.Storage.Move("staging/"+key, "layers/"+sha256sum)
 	if err != nil {
 		log.WithError(err).WithField("layer", key).
 			Error("failed to move layer from staging")
 
 		return nil, err
 	}
-
-	size := counter.count
 
 	log.WithFields(log.Fields{
 		"layer":  key,

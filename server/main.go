@@ -32,9 +32,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
-	"time"
 
-	"cloud.google.com/go/storage"
 	"github.com/google/nixery/server/builder"
 	"github.com/google/nixery/server/config"
 	"github.com/google/nixery/server/layers"
@@ -58,49 +56,6 @@ var (
 	manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/([\w|\-|\.|\_]+)$`)
 	layerRegex    = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
 )
-
-// layerRedirect constructs the public URL of the layer object in the Cloud
-// Storage bucket, signs it and redirects the user there.
-//
-// Signing the URL allows unauthenticated clients to retrieve objects from the
-// bucket.
-//
-// The Docker client is known to follow redirects, but this might not be true
-// for all other registry clients.
-func constructLayerUrl(cfg *config.Config, digest string) (string, error) {
-	log.WithField("layer", digest).Info("redirecting layer request to bucket")
-	object := "layers/" + digest
-
-	if cfg.Signing != nil {
-		opts := *cfg.Signing
-		opts.Expires = time.Now().Add(5 * time.Minute)
-		return storage.SignedURL(cfg.Bucket, object, &opts)
-	} else {
-		return ("https://storage.googleapis.com/" + cfg.Bucket + "/" + object), nil
-	}
-}
-
-// prepareBucket configures the handle to a Cloud Storage bucket in which
-// individual layers will be stored after Nix builds. Nixery does not directly
-// serve layers to registry clients, instead it redirects them to the public
-// URLs of the Cloud Storage bucket.
-//
-// The bucket is required for Nixery to function correctly, hence fatal errors
-// are generated in case it fails to be set up correctly.
-func prepareBucket(ctx context.Context, cfg *config.Config) *storage.BucketHandle {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		log.WithError(err).Fatal("failed to set up Cloud Storage client")
-	}
-
-	bkt := client.Bucket(cfg.Bucket)
-
-	if _, err := bkt.Attrs(ctx); err != nil {
-		log.WithError(err).WithField("bucket", cfg.Bucket).Fatal("could not access configured bucket")
-	}
-
-	return bkt
-}
 
 // Downloads the popularity information for the package set from the
 // URL specified in Nixery's configuration.
@@ -218,16 +173,15 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
 	if len(layerMatches) == 3 {
 		digest := layerMatches[2]
-		url, err := constructLayerUrl(&h.state.Cfg, digest)
-
+		storage := h.state.Storage
+		err := storage.ServeLayer(digest, w)
 		if err != nil {
-			log.WithError(err).WithField("layer", digest).Error("failed to sign GCS URL")
-			writeError(w, 500, "UNKNOWN", "could not serve layer")
-			return
+			log.WithError(err).WithFields(log.Fields{
+				"layer":   digest,
+				"backend": storage.Name(),
+			}).Error("failed to serve layer from storage backend")
 		}
 
-		w.Header().Set("Location", url)
-		w.WriteHeader(303)
 		return
 	}
 
@@ -243,7 +197,6 @@ func main() {
 	}
 
 	ctx := context.Background()
-	bucket := prepareBucket(ctx, &cfg)
 	cache, err := builder.NewCache()
 	if err != nil {
 		log.WithError(err).Fatal("failed to instantiate build cache")
@@ -259,10 +212,9 @@ func main() {
 	}
 
 	state := builder.State{
-		Bucket: bucket,
-		Cache:  &cache,
-		Cfg:    cfg,
-		Pop:    pop,
+		Cache: &cache,
+		Cfg:   cfg,
+		Pop:   pop,
 	}
 
 	log.WithFields(log.Fields{
