@@ -68,12 +68,14 @@ func (b *FSBackend) Move(old, new string) error {
 	return os.Rename(path.Join(b.path, old), newpath)
 }
 
-func (b *FSBackend) ServeLayer(digest string, w http.ResponseWriter) error {
-	// http.Serve* functions attempt to be a lot more clever than
-	// I want, but I also would prefer to avoid implementing error
-	// translation myself - thus a fake request is created here.
-	req := http.Request{Method: "GET"}
-	http.ServeFile(w, &req, path.Join(b.path, "sha256:"+digest))
+func (b *FSBackend) ServeLayer(digest string, r *http.Request, w http.ResponseWriter) error {
+	p := path.Join(b.path, "layers", digest)
 
+	log.WithFields(log.Fields{
+		"layer": digest,
+		"path": p,
+	}).Info("serving layer from filesystem")
+
+	http.ServeFile(w, r, p)
 	return nil
 }
