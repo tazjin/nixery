@@ -2,6 +2,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,7 +35,7 @@ func (b *FSBackend) Name() string {
 	return fmt.Sprintf("Filesystem (%s)", b.path)
 }
 
-func (b *FSBackend) Persist(key string, f func(io.Writer) (string, int64, error)) (string, int64, error) {
+func (b *FSBackend) Persist(ctx context.Context, key string, f Persister) (string, int64, error) {
 	full := path.Join(b.path, key)
 	dir := path.Dir(full)
 	err := os.MkdirAll(dir, 0755)
@@ -53,12 +54,12 @@ func (b *FSBackend) Persist(key string, f func(io.Writer) (string, int64, error)
 	return f(file)
 }
 
-func (b *FSBackend) Fetch(key string) (io.ReadCloser, error) {
+func (b *FSBackend) Fetch(ctx context.Context, key string) (io.ReadCloser, error) {
 	full := path.Join(b.path, key)
 	return os.Open(full)
 }
 
-func (b *FSBackend) Move(old, new string) error {
+func (b *FSBackend) Move(ctx context.Context, old, new string) error {
 	newpath := path.Join(b.path, new)
 	err := os.MkdirAll(path.Dir(newpath), 0755)
 	if err != nil {

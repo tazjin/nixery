@@ -66,8 +66,7 @@ func (b *GCSBackend) Name() string {
 	return "Google Cloud Storage (" + b.bucket + ")"
 }
 
-func (b *GCSBackend) Persist(path string, f func(io.Writer) (string, int64, error)) (string, int64, error) {
-	ctx := context.Background()
+func (b *GCSBackend) Persist(ctx context.Context, path string, f Persister) (string, int64, error) {
 	obj := b.handle.Object(path)
 	w := obj.NewWriter(ctx)
 
@@ -80,8 +79,7 @@ func (b *GCSBackend) Persist(path string, f func(io.Writer) (string, int64, erro
 	return hash, size, w.Close()
 }
 
-func (b *GCSBackend) Fetch(path string) (io.ReadCloser, error) {
-	ctx := context.Background()
+func (b *GCSBackend) Fetch(ctx context.Context, path string) (io.ReadCloser, error) {
 	obj := b.handle.Object(path)
 
 	// Probe whether the file exists before trying to fetch it
@@ -98,8 +96,7 @@ func (b *GCSBackend) Fetch(path string) (io.ReadCloser, error) {
 //
 // The Go API for Cloud Storage does not support renaming objects, but
 // the HTTP API does. The code below makes the relevant call manually.
-func (b *GCSBackend) Move(old, new string) error {
-	ctx := context.Background()
+func (b *GCSBackend) Move(ctx context.Context, old, new string) error {
 	creds, err := google.FindDefaultCredentials(ctx, gcsScope)
 	if err != nil {
 		return err

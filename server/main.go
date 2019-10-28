@@ -26,7 +26,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -110,7 +109,6 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 }
 
 type registryHandler struct {
-	ctx   context.Context
 	state *builder.State
 }
 
@@ -132,7 +130,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}).Info("requesting image manifest")
 
 		image := builder.ImageFromName(imageName, imageTag)
-		buildResult, err := builder.BuildImage(h.ctx, h.state, &image)
+		buildResult, err := builder.BuildImage(r.Context(), h.state, &image)
 
 		if err != nil {
 			writeError(w, 500, "UNKNOWN", "image build failure")
@@ -211,7 +209,6 @@ func main() {
 
 	log.WithField("backend", s.Name()).Info("initialised storage backend")
 
-	ctx := context.Background()
 	cache, err := builder.NewCache()
 	if err != nil {
 		log.WithError(err).Fatal("failed to instantiate build cache")
@@ -240,7 +237,6 @@ func main() {
 
 	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{
-		ctx:   ctx,
 		state: &state,
 	})
 
