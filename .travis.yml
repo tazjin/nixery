@@ -26,12 +26,11 @@ script:
     docker run -d -p 8080:8080 --name nixery \
       -v ${PWD}/test-files:/var/nixery \
       -e PORT=8080 \
-      -e BUCKET=nixery-ci-tests \
+      -e GCS_BUCKET=nixery-ci-tests \
       -e GOOGLE_CLOUD_PROJECT=nixery \
       -e GOOGLE_APPLICATION_CREDENTIALS=/var/nixery/key.json \
-      -e GCS_SIGNING_ACCOUNT="${GCS_SIGNING_ACCOUNT}" \
-      -e GCS_SIGNING_KEY=/var/nixery/gcs.pem \
       -e NIXERY_CHANNEL=nixos-unstable \
+      -e NIXERY_STORAGE_BACKEND=gcs \
       ${IMG}
 
   # print all of the container's logs regardless of success
