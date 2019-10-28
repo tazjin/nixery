@@ -74,13 +74,17 @@ interactive images.
 Nixery supports the following configuration options, provided via environment
 variables:
 
-* `BUCKET`: [Google Cloud Storage][gcs] bucket to store & serve image layers
 * `PORT`: HTTP port on which Nixery should listen
 * `NIXERY_CHANNEL`: The name of a Nix/NixOS channel to use for building
 * `NIXERY_PKGS_REPO`: URL of a git repository containing a package set (uses
   locally configured SSH/git credentials)
 * `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to
   use for building
+* `NIXERY_STORAGE_BACKEND`: The type of backend storage to use, currently
+  supported values are `gcs` (Google Cloud Storage) and `filesystem`.
+
+  For each of these additional backend configuration is necessary, see the
+  [storage section](#storage) for details.
 * `NIX_TIMEOUT`: Number of seconds that any Nix builder is allowed to run
   (defaults to 60)
 * `NIX_POPULARITY_URL`: URL to a file containing popularity data for
@@ -90,6 +94,26 @@ If the `GOOGLE_APPLICATION_CREDENTIALS` environment variable is set to a service
 account key, Nixery will also use this key to create [signed URLs][] for layers
 in the storage bucket. This makes it possible to serve layers from a bucket
 without having to make them publicly available.
+
+### Storage
+
+Nixery supports multiple different storage backends in which its build cache and
+image layers are kept, and from which they are served.
+
+Currently the available storage backends are Google Cloud Storage and the local
+file system.
+
+In the GCS case, images are served by redirecting clients to the storage bucket.
+Layers stored on the filesystem are served straight from the local disk.
+
+These extra configuration variables must be set to configure storage backends:
+
+* `GCS_BUCKET`: Name of the Google Cloud Storage bucket to use (**required** for
+  `gcs`)
+* `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON key
+  (**optional** for `gcs`)
+* `STORAGE_PATH`: Path to a folder in which to store and from which to serve
+  data (**required** for `filesystem`)
 
 ## Roadmap
 
