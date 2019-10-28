@@ -20,7 +20,7 @@ import (
 var client = &http.Client{}
 
 // API scope needed for renaming objects in GCS
-const gcsScope = "https://www.googleapis.com/auth/devstorage"
+const gcsScope = "https://www.googleapis.com/auth/devstorage.read_write"
 
 type GCSBackend struct {
 	bucket  string
