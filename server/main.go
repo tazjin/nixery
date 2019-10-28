@@ -202,6 +202,8 @@ func main() {
 	switch cfg.Backend {
 	case config.GCS:
 		s, err = storage.NewGCSBackend()
+	case config.FileSystem:
+		s, err = storage.NewFSBackend()
 	}
 	if err != nil {
 		log.WithError(err).Fatal("failed to initialise storage backend")
