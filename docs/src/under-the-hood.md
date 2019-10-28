@@ -6,9 +6,9 @@ image is requested from Nixery.
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 
 - [1. The image manifest is requested](#1-the-image-manifest-is-requested)
-- [2. Nix builds the image](#2-nix-builds-the-image)
-- [3. Layers are uploaded to Nixery's storage](#3-layers-are-uploaded-to-nixerys-storage)
-- [4. The image manifest is sent back](#4-the-image-manifest-is-sent-back)
+- [2. Nix fetches and prepares image content](#2-nix-fetches-and-prepares-image-content)
+- [3. Layers are grouped, created, hashed, and persisted](#3-layers-are-grouped-created-hashed-and-persisted)
+- [4. The manifest is assembled and returned to the client](#4-the-manifest-is-assembled-and-returned-to-the-client)
 - [5. Image layers are requested](#5-image-layers-are-requested)
 
 <!-- markdown-toc end -->
@@ -40,7 +40,7 @@ It then invokes Nix with three parameters:
 2. image tag
 3. configured package set source
 
-## 2. Nix builds the image
+## 2. Nix fetches and prepares image content
 
 Using the parameters above, Nix imports the package set and begins by mapping
 the image names to attributes in the package set.
@@ -50,12 +50,31 @@ their name, for example anything under `haskellPackages`. The registry protocol
 does not allow uppercase characters, so the Nix code will translate something
 like `haskellpackages` (lowercased) to the correct attribute name.
 
-After identifying all contents, Nix determines the contents of each layer while
-optimising for the best possible cache efficiency (see the [layering design
-doc][] for details).
+After identifying all contents, Nix uses the `symlinkJoin` function to
+create a special layer with the "symlink farm" required to let the
+image function like a normal disk image.
 
-Finally it builds each layer, assembles the image manifest as JSON structure,
-and yields this manifest back to the web server.
+Nix then returns information about the image contents as well as the
+location of the special layer to Nixery.
+
+## 3. Layers are grouped, created, hashed, and persisted
+
+With the information received from Nix, Nixery determines the contents
+of each layer while optimising for the best possible cache efficiency
+(see the [layering design doc][] for details).
+
+With the grouped layers, Nixery then begins to create compressed
+tarballs with all required contents for each layer. As these tarballs
+are being created, they are simultaneously being hashed (as the image
+manifest must contain the content-hashes of all layers) and persisted
+to storage.
+
+Storage can be either a remote [Google Cloud Storage][gcs] bucket, or
+a local filesystem path.
+
+During this step, Nixery checks its build cache (see [Caching][]) to
+determine whether a layer needs to be built or is already cached from
+a previous build.
 
 *Note:* While this step is running (which can take some time in the case of
 large first-time image builds), the registry client is left hanging waiting for
@@ -63,38 +82,42 @@ an HTTP response. Unfortunately the registry protocol does not allow for any
 feedback back to the user at this point, so from the user's perspective things
 just ... hang, for a moment.
 
-## 3. Layers are uploaded to Nixery's storage
+## 4. The manifest is assembled and returned to the client
 
-Nixery inspects the returned manifest and uploads each layer to the configured
-[Google Cloud Storage][gcs] bucket. To avoid unnecessary uploading, it will
-check whether layers are already present in the bucket.
+Once armed with the hashes of all required layers, Nixery assembles
+the OCI Container Image manifest which describes the structure of the
+built image and names all of its layers by their content hash.
 
-## 4. The image manifest is sent back
-
-If everything went well at this point, Nixery responds to the registry client
-with the image manifest.
-
-The client now inspects the manifest and basically sees a list of SHA256-hashes,
-each corresponding to one layer of the image. Most clients will now consult
-their local layer storage and determine which layers they are missing.
-
-Each of the missing layers is then requested from Nixery.
+This manifest is returned to the client.
 
 ## 5. Image layers are requested
 
-For each image layer that it needs to retrieve, the registry client assembles a
-request that looks like this:
+The client now inspects the manifest and determines which of the
+layers it is currently missing based on their content hashes. Note
+that different container runtimes will handle this differently, and in
+the case of certain engine and storage driver combinations (e.g.
+Docker with OverlayFS) layers might be downloaded again even if they
+are already present.
+
+For each of the missing layers, the client now issues a request to
+Nixery that looks like this:
 
 `GET /v2/${imageName}/blob/sha256:${layerHash}`
 
-Nixery receives these requests and *rewrites* them to Google Cloud Storage URLs,
-responding with an `HTTP 303 See Other` status code and the actual download URL
-of the layer.
+Nixery receives these requests and handles them based on the
+configured storage backend.
+
+If the storage backend is GCS, it *redirects* them to Google Cloud
+Storage URLs, responding with an `HTTP 303 See Other` status code and
+the actual download URL of the layer.
 
 Nixery supports using private buckets which are not generally world-readable, in
 which case [signed URLs][] are constructed using a private key. These allow the
 registry client to download each layer without needing to care about how the
 underlying authentication works.
+
+If the storage backend is the local filesystem, Nixery will attempt to
+serve the layer back to the client from disk.
 
 ---------
 
