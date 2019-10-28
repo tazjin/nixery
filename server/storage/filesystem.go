@@ -59,7 +59,13 @@ func (b *FSBackend) Fetch(key string) (io.ReadCloser, error) {
 }
 
 func (b *FSBackend) Move(old, new string) error {
-	return os.Rename(path.Join(b.path, old), path.Join(b.path, new))
+	newpath := path.Join(b.path, new)
+	err := os.MkdirAll(path.Dir(newpath), 0755)
+	if err != nil {
+		return err
+	}
+
+	return os.Rename(path.Join(b.path, old), newpath)
 }
 
 func (b *FSBackend) ServeLayer(digest string, w http.ResponseWriter) error {
