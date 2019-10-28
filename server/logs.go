@@ -76,11 +76,12 @@ func (f stackdriverFormatter) Format(e *log.Entry) ([]byte, error) {
 	msg["eventTime"] = &e.Time
 	msg["severity"] = logSeverity(e.Level)
 
-	if err, ok := msg[log.ErrorKey]; ok {
-		// TODO(tazjin): Cast safely - for now there should be
-		// no calls to `.WithError` with a nil error, but who
-		// knows.
-		msg[log.ErrorKey] = (err.(error)).Error()
+	if e, ok := msg[log.ErrorKey]; ok {
+		if err, isError := e.(error); isError {
+			msg[log.ErrorKey] = err.Error()
+		} else {
+			delete(msg, log.ErrorKey)
+		}
 	}
 
 	if isError(e) {
