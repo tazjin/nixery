@@ -42,6 +42,7 @@ type Backend int
 
 const (
 	GCS = iota
+	FileSystem
 )
 
 // Config holds the Nixery configuration options.
@@ -64,6 +65,8 @@ func FromEnv() (Config, error) {
 	switch os.Getenv("NIXERY_STORAGE_BACKEND") {
 	case "gcs":
 		b = GCS
+	case "filesystem":
+		b = FileSystem
 	default:
 		log.WithField("values", []string{
 			"gcs",

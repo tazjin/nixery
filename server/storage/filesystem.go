@@ -15,7 +15,12 @@ type FSBackend struct {
 	path string
 }
 
-func NewFSBackend(p string) (*FSBackend, error) {
+func NewFSBackend() (*FSBackend, error) {
+	p := os.Getenv("STORAGE_PATH")
+	if p == "" {
+		return nil, fmt.Errorf("STORAGE_PATH must be set for filesystem storage")
+	}
+
 	p = path.Clean(p)
 	err := os.MkdirAll(p, 0755)
 	if err != nil {
