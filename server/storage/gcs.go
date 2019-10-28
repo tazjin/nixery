@@ -139,7 +139,7 @@ func (b *GCSBackend) Move(old, new string) error {
 	return nil
 }
 
-func (b *GCSBackend) ServeLayer(digest string, w http.ResponseWriter) error {
+func (b *GCSBackend) ServeLayer(digest string, r *http.Request, w http.ResponseWriter) error {
 	url, err := b.constructLayerUrl(digest)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
@@ -149,6 +149,8 @@ func (b *GCSBackend) ServeLayer(digest string, w http.ResponseWriter) error {
 
 		return err
 	}
+
+	log.WithField("layer", digest).Info("redirecting layer request to GCS bucket")
 
 	w.Header().Set("Location", url)
 	w.WriteHeader(303)
