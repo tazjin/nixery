@@ -175,7 +175,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(layerMatches) == 3 {
 		digest := layerMatches[2]
 		storage := h.state.Storage
-		err := storage.ServeLayer(digest, w)
+		err := storage.ServeLayer(digest, r, w)
 		if err != nil {
 			log.WithError(err).WithFields(log.Fields{
 				"layer":   digest,

@@ -30,5 +30,5 @@ type Backend interface {
 
 	// Serve provides a handler function to serve HTTP requests
 	// for layers in the storage backend.
-	ServeLayer(digest string, w http.ResponseWriter) error
+	ServeLayer(digest string, r *http.Request, w http.ResponseWriter) error
 }

@@ -411,7 +411,7 @@ func uploadHashLayer(ctx context.Context, s *State, key string, lw layerWriter) 
 		"layer":  key,
 		"sha256": sha256sum,
 		"size":   size,
-	}).Info("uploaded layer")
+	}).Info("created and persisted layer")
 
 	entry := manifest.Entry{
 		Digest: "sha256:" + sha256sum,
