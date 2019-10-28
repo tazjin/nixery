@@ -120,7 +120,7 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 		return m, true
 	}
 
-	r, err := s.Storage.Fetch("manifests/" + key)
+	r, err := s.Storage.Fetch(ctx, "manifests/"+key)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"manifest": key,
@@ -152,7 +152,7 @@ func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage)
 	go s.Cache.localCacheManifest(key, m)
 
 	path := "manifests/" + key
-	_, size, err := s.Storage.Persist(path, func(w io.Writer) (string, int64, error) {
+	_, size, err := s.Storage.Persist(ctx, path, func(w io.Writer) (string, int64, error) {
 		size, err := io.Copy(w, bytes.NewReader([]byte(m)))
 		return "", size, err
 	})
@@ -180,7 +180,7 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 		return entry, true
 	}
 
-	r, err := s.Storage.Fetch("builds/" + key)
+	r, err := s.Storage.Fetch(ctx, "builds/"+key)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"layer":   key,
@@ -220,7 +220,7 @@ func cacheLayer(ctx context.Context, s *State, key string, entry manifest.Entry)
 
 	j, _ := json.Marshal(&entry)
 	path := "builds/" + key
-	_, _, err := s.Storage.Persist(path, func(w io.Writer) (string, int64, error) {
+	_, _, err := s.Storage.Persist(ctx, path, func(w io.Writer) (string, int64, error) {
 		size, err := io.Copy(w, bytes.NewReader(j))
 		return "", size, err
 	})
