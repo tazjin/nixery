@@ -73,7 +73,7 @@ func (b *FSBackend) ServeLayer(digest string, r *http.Request, w http.ResponseWr
 
 	log.WithFields(log.Fields{
 		"layer": digest,
-		"path": p,
+		"path":  p,
 	}).Info("serving layer from filesystem")
 
 	http.ServeFile(w, r, p)

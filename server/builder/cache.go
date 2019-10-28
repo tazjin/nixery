@@ -185,7 +185,7 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 		log.WithError(err).WithFields(log.Fields{
 			"layer":   key,
 			"backend": s.Storage.Name(),
-		}).Warn("failed to retrieve cached layer from storage backend")
+		}).Debug("failed to retrieve cached layer from storage backend")
 
 		return nil, false
 	}
