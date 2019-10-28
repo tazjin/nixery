@@ -300,11 +300,7 @@ func groupLayer(dt *flow.DominatorTree, root *closure) Layer {
 	sort.Strings(contents)
 
 	return Layer{
-		Contents: contents,
-		// TODO(tazjin): The point of this is to factor in
-		// both the size and the popularity when making merge
-		// decisions, but there might be a smarter way to do
-		// it than a plain multiplication.
+		Contents:    contents,
 		MergeRating: uint64(root.Popularity) * size,
 	}
 }
