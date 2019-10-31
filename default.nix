@@ -53,6 +53,8 @@ in rec {
     exec ${nixery-server}/bin/server
   '';
 
+  nixery-popcount = callPackage ./popcount { };
+
   # Container image containing Nixery and Nix itself. This image can
   # be run on Kubernetes, published on AppEngine or whatever else is
   # desired.
