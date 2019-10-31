@@ -160,6 +160,11 @@ func narInfoToRefs(narinfo string) []string {
 }
 
 func fetchNarInfo(i *item) (string, error) {
+	file, err := ioutil.ReadFile("popcache/" + i.hash)
+	if err == nil {
+		return string(file), nil
+	}
+
 	resp, err := client.Get(fmt.Sprintf("https://cache.nixos.org/%s.narinfo", i.hash))
 	if err != nil {
 		return "", err
@@ -168,6 +173,10 @@ func fetchNarInfo(i *item) (string, error) {
 	defer resp.Body.Close()
 
 	narinfo, err := ioutil.ReadAll(resp.Body)
+
+	// best-effort write the file to the cache
+	ioutil.WriteFile("popcache/" + i.hash, narinfo, 0644)
+
 	return string(narinfo), err
 }
 
@@ -206,6 +215,11 @@ func finaliser(count int, downloaders chan struct{}, narinfos chan string) {
 func main() {
 	if len(os.Args) == 1 {
 		log.Fatalf("Nix channel must be specified as first argument")
+	}
+
+	err := os.MkdirAll("popcache", 0755)
+	if err != nil {
+		log.Fatalf("Failed to create 'popcache' directory in current folder: %s\n", err)
 	}
 
 	count := 42 // concurrent downloader count
