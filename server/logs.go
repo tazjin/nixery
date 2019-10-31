@@ -58,10 +58,6 @@ func logSeverity(l log.Level) string {
 		return "INFO"
 	case log.WarnLevel:
 		return "WARNING"
-	case log.ErrorLevel:
-		return "ERROR"
-	case log.FatalLevel:
-		return "CRITICAL"
 	case log.PanicLevel:
 		return "EMERGENCY"
 	default:

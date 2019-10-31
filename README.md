@@ -25,7 +25,7 @@ intention of becoming a Kubernetes controller that can serve declarative image
 specifications specified in CRDs as container images. The design for this was
 outlined in [a public gist][gist].
 
-This is not an officially supported Google project.
+This is an officially supported LinkedIn project.
 
 ## Demo
 
