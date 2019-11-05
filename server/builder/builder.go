@@ -67,7 +67,7 @@ type Architecture struct {
 }
 
 var amd64 = Architecture{"x86_64-linux", "amd64"}
-var arm = Architecture{"aarch64-linux", "arm64"}
+var arm64 = Architecture{"aarch64-linux", "arm64"}
 
 // Image represents the information necessary for building a container image.
 // This can be either a list of package names (corresponding to keys in the
@@ -106,7 +106,7 @@ type BuildResult struct {
 // only the order of requested packages has changed.
 func ImageFromName(name string, tag string) Image {
 	pkgs := strings.Split(name, "/")
-	expanded := convenienceNames(pkgs)
+	arch, expanded := metaPackages(pkgs)
 	expanded = append(expanded, "cacert", "iana-etc")
 
 	sort.Strings(pkgs)
@@ -116,7 +116,7 @@ func ImageFromName(name string, tag string) Image {
 		Name:     strings.Join(pkgs, "/"),
 		Tag:      tag,
 		Packages: expanded,
-		Arch:     &amd64,
+		Arch:     arch,
 	}
 }
 
@@ -136,22 +136,39 @@ type ImageResult struct {
 	} `json:"symlinkLayer"`
 }
 
-// convenienceNames expands convenience package names defined by Nixery which
-// let users include commonly required sets of tools in a container quickly.
+// metaPackages expands package names defined by Nixery which either
+// include sets of packages or trigger certain image-building
+// behaviour.
 //
-// Convenience names must be specified as the first package in an image.
+// Meta-packages must be specified as the first packages in an image
+// name.
 //
-// Currently defined convenience names are:
+// Currently defined meta-packages are:
 //
 // * `shell`: Includes bash, coreutils and other common command-line tools
-func convenienceNames(packages []string) []string {
-	shellPackages := []string{"bashInteractive", "coreutils", "moreutils", "nano"}
-
-	if packages[0] == "shell" {
-		return append(packages[1:], shellPackages...)
+// * `arm64`: Causes Nixery to build images for the ARM64 architecture
+func metaPackages(packages []string) (*Architecture, []string) {
+	arch := &amd64
+	var metapkgs []string
+	for idx, p := range packages {
+		if p == "shell" || p == "arm64" {
+			metapkgs = append(metapkgs, p)
+		} else {
+			packages = packages[idx:]
+			break
+		}
 	}
 
-	return packages
+	for _, p := range metapkgs {
+		switch p {
+		case "shell":
+			packages = append(packages, "bashInteractive", "coreutils", "moreutils", "nano")
+		case "arm64":
+			arch = &arm64
+		}
+	}
+
+	return arch, packages
 }
 
 // logNix logs each output line from Nix. It runs in a goroutine per
