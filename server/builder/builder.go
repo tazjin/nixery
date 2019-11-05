@@ -53,6 +53,22 @@ type State struct {
 	Pop     layers.Popularity
 }
 
+// Architecture represents the possible CPU architectures for which
+// container images can be built.
+//
+// The default architecture is amd64, but support for ARM platforms is
+// available within nixpkgs and can be toggled via meta-packages.
+type Architecture struct {
+	// Name of the system tuple to pass to Nix
+	nixSystem string
+
+	// Name of the architecture as used in the OCI manifests
+	imageArch string
+}
+
+var amd64 = Architecture{"x86_64-linux", "amd64"}
+var arm = Architecture{"aarch64-linux", "arm64"}
+
 // Image represents the information necessary for building a container image.
 // This can be either a list of package names (corresponding to keys in the
 // nixpkgs set) or a Nix expression that results in a *list* of derivations.
@@ -63,6 +79,10 @@ type Image struct {
 	// Names of packages to include in the image. These must correspond
 	// directly to top-level names of Nix packages in the nixpkgs tree.
 	Packages []string
+
+	// Architecture for which to build the image. Nixery defaults
+	// this to amd64 if not specified via meta-packages.
+	Arch *Architecture
 }
 
 // BuildResult represents the data returned from the server to the
@@ -96,6 +116,7 @@ func ImageFromName(name string, tag string) Image {
 		Name:     strings.Join(pkgs, "/"),
 		Tag:      tag,
 		Packages: expanded,
+		Arch:     &amd64,
 	}
 }
 
@@ -218,6 +239,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 		"--argstr", "packages", string(packages),
 		"--argstr", "srcType", srcType,
 		"--argstr", "srcArgs", srcArgs,
+		"--argstr", "system", image.Arch.nixSystem,
 	}
 
 	output, err := callNix("nixery-build-image", image.Name, args)
@@ -448,7 +470,7 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 		return nil, err
 	}
 
-	m, c := manifest.Manifest(layers)
+	m, c := manifest.Manifest(image.Arch.imageArch, layers)
 
 	lw := func(w io.Writer) error {
 		r := bytes.NewReader(c.Config)

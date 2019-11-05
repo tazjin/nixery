@@ -25,6 +25,7 @@
   # Description of the package set to be used (will be loaded by load-pkgs.nix)
   srcType ? "nixpkgs",
   srcArgs ? "nixos-19.03",
+  system ? "x86_64-linux",
   importArgs ? { },
   # Path to load-pkgs.nix
   loadPkgs ? ./load-pkgs.nix,
@@ -46,7 +47,12 @@ let
 
   inherit (pkgs) lib runCommand writeText;
 
-  pkgs = import loadPkgs { inherit srcType srcArgs importArgs; };
+  pkgs = import loadPkgs {
+    inherit srcType srcArgs;
+    importArgs = importArgs // {
+      inherit system;
+    };
+  };
 
   # deepFetch traverses the top-level Nix package set to retrieve an item via a
   # path specified in string form.
