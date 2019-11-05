@@ -33,7 +33,6 @@ const (
 	configType   = "application/vnd.docker.container.image.v1+json"
 
 	// image config constants
-	arch   = "amd64"
 	os     = "linux"
 	fsType = "layers"
 )
@@ -84,7 +83,7 @@ type ConfigLayer struct {
 // Outside of this module the image configuration is treated as an
 // opaque blob and it is thus returned as an already serialised byte
 // array and its SHA256-hash.
-func configLayer(hashes []string) ConfigLayer {
+func configLayer(arch string, hashes []string) ConfigLayer {
 	c := imageConfig{}
 	c.Architecture = arch
 	c.OS = os
@@ -104,7 +103,7 @@ func configLayer(hashes []string) ConfigLayer {
 // layer.
 //
 // Callers do not need to set the media type for the layer entries.
-func Manifest(layers []Entry) (json.RawMessage, ConfigLayer) {
+func Manifest(arch string, layers []Entry) (json.RawMessage, ConfigLayer) {
 	// Sort layers by their merge rating, from highest to lowest.
 	// This makes it likely for a contiguous chain of shared image
 	// layers to appear at the beginning of a layer.
@@ -123,7 +122,7 @@ func Manifest(layers []Entry) (json.RawMessage, ConfigLayer) {
 		layers[i] = l
 	}
 
-	c := configLayer(hashes)
+	c := configLayer(arch, hashes)
 
 	m := manifest{
 		SchemaVersion: schemaVersion,
