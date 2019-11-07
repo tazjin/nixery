@@ -45,8 +45,13 @@ let
     toFile
     toJSON;
 
-  inherit (pkgs) lib runCommand writeText;
+  # Package set to use for sourcing utilities
+  nativePkgs = import loadPkgs { inherit srcType srcArgs importArgs; };
+  inherit (nativePkgs) coreutils jq openssl lib runCommand writeText symlinkJoin;
 
+  # Package set to use for packages to be included in the image. This
+  # package set is imported with the system set to the target
+  # architecture.
   pkgs = import loadPkgs {
     inherit srcType srcArgs;
     importArgs = importArgs // {
@@ -115,7 +120,7 @@ let
   runtimeGraph = runCommand "runtime-graph.json" {
     __structuredAttrs = true;
     exportReferencesGraph.graph = allContents.contents;
-    PATH = "${pkgs.coreutils}/bin";
+    PATH = "${coreutils}/bin";
     builder = toFile "builder" ''
       . .attrs.sh
       cp .attrs.json ''${outputs[out]}
@@ -124,7 +129,7 @@ let
 
   # Create a symlink forest into all top-level store paths of the
   # image contents.
-  contentsEnv = pkgs.symlinkJoin {
+  contentsEnv = symlinkJoin {
     name = "bulk-layers";
     paths = allContents.contents;
   };
@@ -141,7 +146,7 @@ let
   # Two different hashes are computed for different usages (inclusion
   # in manifest vs. content-checking in the layer cache).
   symlinkLayerMeta = fromJSON (readFile (runCommand "symlink-layer-meta.json" {
-    buildInputs = with pkgs; [ coreutils jq openssl ];
+    buildInputs = [ coreutils jq openssl ];
   }''
     tarHash=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
     layerSize=$(stat --printf '%s' ${symlinkLayer})
