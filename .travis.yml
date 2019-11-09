@@ -1,9 +1,13 @@
 language: nix
+arch:
+  - amd64
+  - arm64
 services:
   - docker
 env:
   - NIX_PATH=nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/5271f8dddc0f2e54f55bd2fc1868c09ff72ac980.tar.gz
 before_script:
+  - echo "Running Nixery CI build on $(uname -m)"
   - mkdir test-files
   - echo ${GOOGLE_KEY} | base64 -d > test-files/key.json
   - echo ${GCS_SIGNING_PEM} | base64 -d > test-files/gcs.pem
