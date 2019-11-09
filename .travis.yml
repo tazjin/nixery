@@ -55,4 +55,25 @@ script:
       echo -n "."
       sleep 1
     done
-  - docker run --rm localhost:8080/hello hello
+
+  # Pull and run an image of the current CPU architecture
+  - |
+    case $(uname -m) in
+      x86_64)
+        docker run --rm localhost:8080/hello hello
+        ;;
+      aarch64)
+        docker run --rm localhost:8080/arm64/hello hello
+        ;;
+    esac
+
+  # Pull an image of the opposite CPU architecture (but without running it)
+  - |
+    case $(uname -m) in
+    x86_64)
+      docker pull localhost:8080/arm64/hello
+      ;;
+    aarch64)
+      docker pull localhost:8080/hello
+      ;;
+    esac
