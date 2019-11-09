@@ -15,7 +15,7 @@ before_script:
   - cachix use nixery
 script:
   - test -z $(gofmt -l server/ build-image/)
-  - nix-build | cachix push nixery
+  - nix-build --arg maxLayers 1 | cachix push nixery
 
   # This integration test makes sure that the container image built
   # for Nixery itself runs fine in Docker, and that images pulled

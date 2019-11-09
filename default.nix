@@ -14,7 +14,8 @@
 
 { pkgs ? import <nixpkgs> { }
 , preLaunch ? ""
-, extraPackages ? [] }:
+, extraPackages ? []
+, maxLayers ? 20 }:
 
 with pkgs;
 
@@ -92,7 +93,8 @@ in rec {
   in dockerTools.buildLayeredImage {
     name = "nixery";
     config.Cmd = [ "${nixery-launch-script}/bin/nixery" ];
-    maxLayers = 96;
+
+    inherit maxLayers;
     contents = [
       bashInteractive
       cacert
