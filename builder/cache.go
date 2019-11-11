@@ -22,7 +22,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/google/nixery/server/manifest"
+	"github.com/google/nixery/manifest"
 	log "github.com/sirupsen/logrus"
 )
 

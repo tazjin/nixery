@@ -32,10 +32,10 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/google/nixery/server/builder"
-	"github.com/google/nixery/server/config"
-	"github.com/google/nixery/server/layers"
-	"github.com/google/nixery/server/storage"
+	"github.com/google/nixery/builder"
+	"github.com/google/nixery/config"
+	"github.com/google/nixery/logs"
+	"github.com/google/nixery/storage"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -59,7 +59,7 @@ var (
 
 // Downloads the popularity information for the package set from the
 // URL specified in Nixery's configuration.
-func downloadPopularity(url string) (layers.Popularity, error) {
+func downloadPopularity(url string) (builder.Popularity, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func downloadPopularity(url string) (layers.Popularity, error) {
 		return nil, err
 	}
 
-	var pop layers.Popularity
+	var pop builder.Popularity
 	err = json.Unmarshal(j, &pop)
 	if err != nil {
 		return nil, err
@@ -190,6 +190,7 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	logs.Init(version)
 	cfg, err := config.FromEnv()
 	if err != nil {
 		log.WithError(err).Fatal("failed to load configuration")
@@ -214,7 +215,7 @@ func main() {
 		log.WithError(err).Fatal("failed to instantiate build cache")
 	}
 
-	var pop layers.Popularity
+	var pop builder.Popularity
 	if cfg.PopUrl != "" {
 		pop, err = downloadPopularity(cfg.PopUrl)
 		if err != nil {

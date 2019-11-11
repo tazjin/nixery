@@ -20,10 +20,10 @@
 
 { pkgs ? import <nixpkgs> {} }:
 
-pkgs.writeShellScriptBin "nixery-build-image" ''
+pkgs.writeShellScriptBin "nixery-prepare-image" ''
   exec ${pkgs.nix}/bin/nix-build \
     --show-trace \
     --no-out-link "$@" \
     --argstr loadPkgs ${./load-pkgs.nix} \
-    ${./build-image.nix}
+    ${./prepare-image.nix}
 ''

@@ -175,7 +175,7 @@ func fetchNarInfo(i *item) (string, error) {
 	narinfo, err := ioutil.ReadAll(resp.Body)
 
 	// best-effort write the file to the cache
-	ioutil.WriteFile("popcache/" + i.hash, narinfo, 0644)
+	ioutil.WriteFile("popcache/"+i.hash, narinfo, 0644)
 
 	return string(narinfo), err
 }

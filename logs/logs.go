@@ -11,7 +11,7 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations under
 // the License.
-package main
+package logs
 
 // This file configures different log formatters via logrus. The
 // standard formatter uses a structured JSON format that is compatible
@@ -112,7 +112,7 @@ func (f stackdriverFormatter) Format(e *log.Entry) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-func init() {
+func Init(version string) {
 	nixeryContext.Version = version
 	log.SetReportCaller(true)
 	log.SetFormatter(stackdriverFormatter{})

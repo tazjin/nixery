@@ -114,7 +114,7 @@
 //
 // Layer budget: 10
 // Layers: { E }, { D, F }, { A }, { B }, { C }
-package layers
+package builder
 
 import (
 	"crypto/sha1"
@@ -128,11 +128,11 @@ import (
 	"gonum.org/v1/gonum/graph/simple"
 )
 
-// RuntimeGraph represents structured information from Nix about the runtime
+// runtimeGraph represents structured information from Nix about the runtime
 // dependencies of a derivation.
 //
 // This is generated in Nix by using the exportReferencesGraph feature.
-type RuntimeGraph struct {
+type runtimeGraph struct {
 	References struct {
 		Graph []string `json:"graph"`
 	} `json:"exportReferencesGraph"`
@@ -153,19 +153,19 @@ type Popularity = map[string]int
 
 // Layer represents the data returned for each layer that Nix should
 // build for the container image.
-type Layer struct {
+type layer struct {
 	Contents    []string `json:"contents"`
 	MergeRating uint64
 }
 
 // Hash the contents of a layer to create a deterministic identifier that can be
 // used for caching.
-func (l *Layer) Hash() string {
+func (l *layer) Hash() string {
 	sum := sha1.Sum([]byte(strings.Join(l.Contents, ":")))
 	return fmt.Sprintf("%x", sum)
 }
 
-func (a Layer) merge(b Layer) Layer {
+func (a layer) merge(b layer) layer {
 	a.Contents = append(a.Contents, b.Contents...)
 	a.MergeRating += b.MergeRating
 	return a
@@ -188,12 +188,15 @@ var nixRegexp = regexp.MustCompile(`^/nix/store/[a-z0-9]+-`)
 
 // PackageFromPath returns the name of a Nix package based on its
 // output store path.
-func PackageFromPath(path string) string {
+func packageFromPath(path string) string {
 	return nixRegexp.ReplaceAllString(path, "")
 }
 
+// DOTID provides a human-readable package name. The name stems from
+// the dot format used by GraphViz, into which the dependency graph
+// can be rendered.
 func (c *closure) DOTID() string {
-	return PackageFromPath(c.Path)
+	return packageFromPath(c.Path)
 }
 
 // bigOrPopular checks whether this closure should be considered for
@@ -236,7 +239,7 @@ func insertEdges(graph *simple.DirectedGraph, cmap *map[string]*closure, node *c
 }
 
 // Create a graph structure from the references supplied by Nix.
-func buildGraph(refs *RuntimeGraph, pop *Popularity) *simple.DirectedGraph {
+func buildGraph(refs *runtimeGraph, pop *Popularity) *simple.DirectedGraph {
 	cmap := make(map[string]*closure)
 	graph := simple.NewDirectedGraph()
 
@@ -296,7 +299,7 @@ func buildGraph(refs *RuntimeGraph, pop *Popularity) *simple.DirectedGraph {
 // Extracts a subgraph starting at the specified root from the
 // dominator tree. The subgraph is converted into a flat list of
 // layers, each containing the store paths and merge rating.
-func groupLayer(dt *flow.DominatorTree, root *closure) Layer {
+func groupLayer(dt *flow.DominatorTree, root *closure) layer {
 	size := root.Size
 	contents := []string{root.Path}
 	children := dt.DominatedBy(root.ID())
@@ -313,7 +316,7 @@ func groupLayer(dt *flow.DominatorTree, root *closure) Layer {
 	// Contents are sorted to ensure that hashing is consistent
 	sort.Strings(contents)
 
-	return Layer{
+	return layer{
 		Contents:    contents,
 		MergeRating: uint64(root.Popularity) * size,
 	}
@@ -324,10 +327,10 @@ func groupLayer(dt *flow.DominatorTree, root *closure) Layer {
 //
 // Layers are merged together until they fit into the layer budget,
 // based on their merge rating.
-func dominate(budget int, graph *simple.DirectedGraph) []Layer {
+func dominate(budget int, graph *simple.DirectedGraph) []layer {
 	dt := flow.Dominators(graph.Node(0), graph)
 
-	var layers []Layer
+	var layers []layer
 	for _, n := range dt.DominatedBy(dt.Root().ID()) {
 		layers = append(layers, groupLayer(&dt, n.(*closure)))
 	}
@@ -352,10 +355,10 @@ func dominate(budget int, graph *simple.DirectedGraph) []Layer {
 	return layers
 }
 
-// GroupLayers applies the algorithm described above the its input and returns a
+// groupLayers applies the algorithm described above the its input and returns a
 // list of layers, each consisting of a list of Nix store paths that it should
 // contain.
-func Group(refs *RuntimeGraph, pop *Popularity, budget int) []Layer {
+func groupLayers(refs *runtimeGraph, pop *Popularity, budget int) []layer {
 	graph := buildGraph(refs, pop)
 	return dominate(budget, graph)
 }
