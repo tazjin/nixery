@@ -20,5 +20,5 @@ let nixery = import ./default.nix { inherit pkgs; };
 in pkgs.stdenv.mkDerivation {
   name = "nixery-dev-shell";
 
-  buildInputs = with pkgs; [ jq nixery.nixery-build-image ];
+  buildInputs = with pkgs; [ jq nixery.nixery-prepare-image ];
 }

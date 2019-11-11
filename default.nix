@@ -20,6 +20,8 @@
 with pkgs;
 
 let
+  inherit (pkgs) buildGoPackage;
+
   # Hash of all Nixery sources - this is used as the Nixery version in
   # builds to distinguish errors between deployed versions, see
   # server/logs.go for details.
@@ -30,13 +32,41 @@ let
   # Go implementation of the Nixery server which implements the
   # container registry interface.
   #
-  # Users should use the nixery-bin derivation below instead.
-  nixery-server = callPackage ./server {
-    srcHash = nixery-src-hash;
+  # Users should use the nixery-bin derivation below instead as it
+  # provides the paths of files needed at runtime.
+  nixery-server = buildGoPackage rec {
+    name = "nixery-server";
+    goDeps = ./go-deps.nix;
+    src = ./.;
+
+    goPackagePath = "github.com/google/nixery";
+    doCheck = true;
+
+    # Simplify the Nix build instructions for Go to just the basics
+    # required to get Nixery up and running with the additional linker
+    # flags required.
+    outputs = [ "out" ];
+    preConfigure = "bin=$out";
+    buildPhase = ''
+      runHook preBuild
+      runHook renameImport
+
+      export GOBIN="$out/bin"
+      go install -ldflags "-X main.version=$(cat ${nixery-src-hash})" ${goPackagePath}
+    '';
+
+    fixupPhase = ''
+      remove-references-to -t ${go} $out/bin/nixery
+    '';
+
+    checkPhase = ''
+      go vet ${goPackagePath}
+      go test ${goPackagePath}
+    '';
   };
 in rec {
   # Implementation of the Nix image building logic
-  nixery-build-image = import ./build-image { inherit pkgs; };
+  nixery-prepare-image = import ./prepare-image { inherit pkgs; };
 
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
@@ -50,8 +80,8 @@ in rec {
   # are installing Nixery directly.
   nixery-bin = writeShellScriptBin "nixery" ''
     export WEB_DIR="${nixery-book}"
-    export PATH="${nixery-build-image}/bin:$PATH"
-    exec ${nixery-server}/bin/server
+    export PATH="${nixery-prepare-image}/bin:$PATH"
+    exec ${nixery-server}/bin/nixery
   '';
 
   nixery-popcount = callPackage ./popcount { };
@@ -104,7 +134,7 @@ in rec {
       gzip
       iana-etc
       nix
-      nixery-build-image
+      nixery-prepare-image
       nixery-launch-script
       openssh
       zlib

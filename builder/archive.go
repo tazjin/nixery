@@ -19,7 +19,6 @@ package builder
 // The tarball is written straight to the supplied reader, which makes it
 // possible to create an image layer from the specified store paths, hash it and
 // upload it in one reading pass.
-
 import (
 	"archive/tar"
 	"compress/gzip"
@@ -28,8 +27,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/google/nixery/server/layers"
 )
 
 // Create a new compressed tarball from each of the paths in the list
@@ -37,7 +34,7 @@ import (
 //
 // The uncompressed tarball is hashed because image manifests must
 // contain both the hashes of compressed and uncompressed layers.
-func packStorePaths(l *layers.Layer, w io.Writer) (string, error) {
+func packStorePaths(l *layer, w io.Writer) (string, error) {
 	shasum := sha256.New()
 	gz := gzip.NewWriter(w)
 	multi := io.MultiWriter(shasum, gz)

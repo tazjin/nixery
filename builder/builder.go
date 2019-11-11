@@ -12,9 +12,10 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
-// Package builder implements the code required to build images via Nix. Image
-// build data is cached for up to 24 hours to avoid duplicated calls to Nix
-// (which are costly even if no building is performed).
+// Package builder implements the logic for assembling container
+// images. It shells out to Nix to retrieve all required Nix-packages
+// and assemble the symlink layer and then creates the required
+// tarballs in-process.
 package builder
 
 import (
@@ -32,10 +33,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/nixery/server/config"
-	"github.com/google/nixery/server/layers"
-	"github.com/google/nixery/server/manifest"
-	"github.com/google/nixery/server/storage"
+	"github.com/google/nixery/config"
+	"github.com/google/nixery/manifest"
+	"github.com/google/nixery/storage"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -50,7 +50,7 @@ type State struct {
 	Storage storage.Backend
 	Cache   *LocalCache
 	Cfg     config.Config
-	Pop     layers.Popularity
+	Pop     Popularity
 }
 
 // Architecture represents the possible CPU architectures for which
@@ -128,7 +128,7 @@ type ImageResult struct {
 	Pkgs  []string `json:"pkgs"`
 
 	// These fields are populated in case of success
-	Graph        layers.RuntimeGraph `json:"runtimeGraph"`
+	Graph        runtimeGraph `json:"runtimeGraph"`
 	SymlinkLayer struct {
 		Size    int    `json:"size"`
 		TarHash string `json:"tarHash"`
@@ -265,7 +265,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 		"--argstr", "system", image.Arch.nixSystem,
 	}
 
-	output, err := callNix("nixery-build-image", image.Name, args)
+	output, err := callNix("nixery-prepare-image", image.Name, args)
 	if err != nil {
 		// granular error logging is performed in callNix already
 		return nil, err
@@ -292,7 +292,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 // added only after successful uploads, which guarantees that entries
 // retrieved from the cache are present in the bucket.
 func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageResult) ([]manifest.Entry, error) {
-	grouped := layers.Group(&result.Graph, &s.Pop, LayerBudget)
+	grouped := groupLayers(&result.Graph, &s.Pop, LayerBudget)
 
 	var entries []manifest.Entry
 
@@ -329,7 +329,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 
 			var pkgs []string
 			for _, p := range l.Contents {
-				pkgs = append(pkgs, layers.PackageFromPath(p))
+				pkgs = append(pkgs, packageFromPath(p))
 			}
 
 			log.WithFields(log.Fields{
