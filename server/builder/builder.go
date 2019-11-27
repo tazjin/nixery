@@ -149,15 +149,21 @@ type ImageResult struct {
 // * `arm64`: Causes Nixery to build images for the ARM64 architecture
 func metaPackages(packages []string) (*Architecture, []string) {
 	arch := &amd64
+
 	var metapkgs []string
+	lastMeta := 0
 	for idx, p := range packages {
 		if p == "shell" || p == "arm64" {
 			metapkgs = append(metapkgs, p)
+			lastMeta = idx + 1
 		} else {
-			packages = packages[idx:]
 			break
 		}
 	}
+
+	// Chop off the meta-packages from the front of the package
+	// list
+	packages = packages[lastMeta:]
 
 	for _, p := range metapkgs {
 		switch p {
