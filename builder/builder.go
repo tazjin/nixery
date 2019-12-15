@@ -53,21 +53,21 @@ type State struct {
 	Pop     Popularity
 }
 
-// Architecture represents the possible CPU architectures for which
-// container images can be built.
-//
-// The default architecture is amd64, but support for ARM platforms is
-// available within nixpkgs and can be toggled via meta-packages.
-type Architecture struct {
-	// Name of the system tuple to pass to Nix
-	nixSystem string
-
-	// Name of the architecture as used in the OCI manifests
-	imageArch string
+// archToSystem translates the name of a CPU architecture as
+// understood by container infrastructure to the equivalent Nix system
+// tuple with which the builder should be invoked.
+func archToSystem(arch string) string {
+	switch arch {
+	case "amd64":
+		return "x86_64-linux"
+	case "arm64":
+		return "aarch64-linux"
+	default:
+		// there should be no code path in Nixery that triggers this, but
+		// if there is by accident then the Nix builder will fail
+		return "unknown"
+	}
 }
-
-var amd64 = Architecture{"x86_64-linux", "amd64"}
-var arm64 = Architecture{"aarch64-linux", "arm64"}
 
 // Image represents the information necessary for building a container image.
 // This can be either a list of package names (corresponding to keys in the
@@ -80,9 +80,8 @@ type Image struct {
 	// directly to top-level names of Nix packages in the nixpkgs tree.
 	Packages []string
 
-	// Architecture for which to build the image. Nixery defaults
-	// this to amd64 if not specified via meta-packages.
-	Arch *Architecture
+	// Meta-configuration (specified via meta-packages).
+	Meta manifest.MetaConfig
 }
 
 // BuildResult represents the data returned from the server to the
@@ -106,7 +105,7 @@ type BuildResult struct {
 // only the order of requested packages has changed.
 func ImageFromName(name string, tag string) Image {
 	pkgs := strings.Split(name, "/")
-	arch, expanded := metaPackages(pkgs)
+	meta, expanded := metaPackages(pkgs)
 	expanded = append(expanded, "cacert", "iana-etc")
 
 	sort.Strings(pkgs)
@@ -116,7 +115,7 @@ func ImageFromName(name string, tag string) Image {
 		Name:     strings.Join(pkgs, "/"),
 		Tag:      tag,
 		Packages: expanded,
-		Arch:     arch,
+		Meta:     meta,
 	}
 }
 
@@ -147,8 +146,10 @@ type ImageResult struct {
 //
 // * `shell`: Includes bash, coreutils and other common command-line tools
 // * `arm64`: Causes Nixery to build images for the ARM64 architecture
-func metaPackages(packages []string) (*Architecture, []string) {
-	arch := &amd64
+func metaPackages(packages []string) (manifest.MetaConfig, []string) {
+	meta := manifest.MetaConfig{
+		Arch:   "amd64",
+	}
 
 	var metapkgs []string
 	lastMeta := 0
@@ -170,11 +171,11 @@ func metaPackages(packages []string) (*Architecture, []string) {
 		case "shell":
 			packages = append(packages, "bashInteractive", "coreutils", "moreutils", "nano")
 		case "arm64":
-			arch = &arm64
+			meta.Arch = "arm64"
 		}
 	}
 
-	return arch, packages
+	return meta, packages
 }
 
 // logNix logs each output line from Nix. It runs in a goroutine per
@@ -262,7 +263,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 		"--argstr", "packages", string(packages),
 		"--argstr", "srcType", srcType,
 		"--argstr", "srcArgs", srcArgs,
-		"--argstr", "system", image.Arch.nixSystem,
+		"--argstr", "system", archToSystem(image.Meta.Arch),
 	}
 
 	output, err := callNix("nixery-prepare-image", image.Name, args)
@@ -493,7 +494,7 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 		return nil, err
 	}
 
-	m, c := manifest.Manifest(image.Arch.imageArch, layers)
+	m, c := manifest.Manifest(image.Meta, layers)
 
 	lw := func(w io.Writer) error {
 		r := bytes.NewReader(c.Config)
