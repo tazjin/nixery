@@ -155,7 +155,7 @@ func metaPackages(packages []string) (manifest.MetaConfig, []string) {
 	var metapkgs []string
 	lastMeta := 0
 	for idx, p := range packages {
-		if p == "shell" || p == "arm64" {
+		if p == "shell" || p == "arm64" || p == "bp.run" {
 			metapkgs = append(metapkgs, p)
 			lastMeta = idx + 1
 		} else {
@@ -173,6 +173,12 @@ func metaPackages(packages []string) (manifest.MetaConfig, []string) {
 			packages = append(packages, "bashInteractive", "coreutils", "moreutils", "nano")
 		case "arm64":
 			meta.Arch = "arm64"
+		case "bp.run":
+			// Buildpack run image meta-configuration as per #80
+			meta.Labels["io.buildpacks.stack.id"] = "com.github.google.nixery"
+			meta.Labels["io.buildpacks.stack.mixins"] = "[]"
+			meta.UID = 1000
+			meta.GID = 1000
 		}
 	}
 
