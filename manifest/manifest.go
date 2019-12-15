@@ -54,6 +54,25 @@ type MetaConfig struct {
 	// Architecture for which to build the image. Nixery defaults this to amd64 if
 	// not specified via meta-packages.
 	Arch string
+
+	// Additional labels to attach to an image
+	Labels map[string]string
+
+	// UID to set in the image (defaults to 0, i.e. usually root)
+	UID uint
+
+	// GID to set in the image (defaults to 0, i.e. usually root)
+	GID uint
+}
+
+// userConfig "renders" the configuration value for the container
+// image configuration based on the UID/GID values
+func (m *MetaConfig) userConfig() string {
+	if m.UID != 0 || m.GID != 0 {
+		return fmt.Sprintf("%d:%d", m.UID, m.GID)
+	} else {
+		return ""
+	}
 }
 
 type manifest struct {
@@ -72,9 +91,10 @@ type imageConfig struct {
 		DiffIDs []string `json:"diff_ids"`
 	} `json:"rootfs"`
 
-	// sic! empty struct (rather than `null`) is required by the
-	// image metadata deserialiser in Kubernetes
-	Config struct{} `json:"config"`
+	Config struct {
+		User   string `json:",omitempty"`
+		Labels map[string]string
+	} `json:"config"`
 }
 
 // ConfigLayer represents the configuration layer to be included in
@@ -97,6 +117,8 @@ func configLayer(meta MetaConfig, hashes []string) ConfigLayer {
 	c.OS = os
 	c.RootFS.FSType = fsType
 	c.RootFS.DiffIDs = hashes
+	c.Config.Labels = meta.Labels
+	c.Config.User = meta.userConfig()
 
 	j, _ := json.Marshal(c)
 

@@ -149,6 +149,7 @@ type ImageResult struct {
 func metaPackages(packages []string) (manifest.MetaConfig, []string) {
 	meta := manifest.MetaConfig{
 		Arch:   "amd64",
+		Labels: make(map[string]string),
 	}
 
 	var metapkgs []string
