@@ -201,7 +201,7 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	go logNix(program, image, errpipe)
+	go logNix(image, program, errpipe)
 
 	if err = cmd.Start(); err != nil {
 		log.WithError(err).WithFields(log.Fields{
