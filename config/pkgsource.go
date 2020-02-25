@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -32,13 +33,16 @@ type PkgSource interface {
 	// for calling Nix.
 	Render(tag string) (string, string)
 
-	// Create a key by which builds for this source and iamge
+	// Create a key by which builds for this source and image
 	// combination can be cached.
 	//
 	// The empty string means that this value is not cacheable due
 	// to the package source being a moving target (such as a
 	// channel).
 	CacheKey(pkgs []string, tag string) string
+
+	// Return available docker tags for the current PkgSource
+	Tags() ([]string, error)
 }
 
 type GitSource struct {
@@ -91,6 +95,25 @@ func (g *GitSource) CacheKey(pkgs []string, tag string) string {
 	return hashed
 }
 
+// Regex to determine valid docker tags
+var tagRegex = regexp.MustCompile(`^[\w][\w.-]{0,127}$`)
+
+func (g *GitSource) Tags() ([]string, error) {
+	tags := []string{"latest"}
+	heads := filepath.Join(g.repository, ".git/refs/heads")
+	err := filepath.Walk(heads, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		// latest tag is always present and represent the master branch
+		if tagRegex.MatchString(info.Name()) && info.Name() != "master" {
+			tags = append(tags, info.Name())
+		}
+		return nil
+	})
+	return tags, err
+}
+
 type NixChannel struct {
 	channel string
 }
@@ -113,6 +136,10 @@ func (n *NixChannel) CacheKey(pkgs []string, tag string) string {
 	return hashed
 }
 
+func (n *NixChannel) Tags() ([]string, error) {
+	return []string{"latest"}, nil
+}
+
 type PkgsPath struct {
 	path string
 }
@@ -128,6 +155,10 @@ func (p *PkgsPath) CacheKey(pkgs []string, tag string) string {
 	return ""
 }
 
+func (n *PkgsPath) Tags() ([]string, error) {
+	return []string{"latest"}, nil
+}
+
 // Retrieve a package source from the environment. If no source is
 // specified, the Nix code will default to a recent NixOS channel.
 func pkgSourceFromEnv() (PkgSource, error) {
@@ -140,7 +171,7 @@ func pkgSourceFromEnv() (PkgSource, error) {
 	}
 
 	if git := os.Getenv("NIXERY_PKGS_REPO"); git != "" {
-		log.WithField("repo", git).Info("using NIx package set from git repository")
+		log.WithField("repo", git).Info("using Nix package set from git repository")
 
 		return &GitSource{
 			repository: git,
