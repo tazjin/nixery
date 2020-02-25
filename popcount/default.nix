@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{ go, stdenv }:
+{ buildGoPackage }:
 
-stdenv.mkDerivation {
+buildGoPackage {
   name = "nixery-popcount";
 
-  buildInputs = [ go ];
-  phases = [ "buildPhase" ];
-  buildPhase = ''
-    mkdir -p $out/bin
-    go build -o $out/bin/popcount ${./popcount.go}
-  '';
+  src = ./.;
+
+  goPackagePath = "github.com/google/nixery/popcount";
+  doCheck = true;
 }
