@@ -44,7 +44,7 @@ be performed for trivial things.
 However if you are running a private Nixery, chances are high that you intend to
 use it with your own packages. There are three options available:
 
-1. Specify an upstream Nix/NixOS channel[^1], such as `nixos-19.03` or
+1. Specify an upstream Nix/NixOS channel[^1], such as `nixos-20.03` or
    `nixos-unstable`.
 2. Specify your own git-repository with a custom package set[^2]. This makes it
    possible to pull different tags, branches or commits by modifying the image
@@ -73,7 +73,7 @@ You must set *all* of these:
 * `BUCKET`: [Google Cloud Storage][gcs] bucket to store & serve image layers
 * `PORT`: HTTP port on which Nixery should listen
 
-You may set *one* of these, if unset Nixery defaults to `nixos-19.03`:
+You may set *one* of these, if unset Nixery defaults to `nixos-20.03`:
 
 * `NIXERY_CHANNEL`: The name of a Nix/NixOS channel to use for building
 * `NIXERY_PKGS_REPO`: URL of a git repository containing a package set (uses
