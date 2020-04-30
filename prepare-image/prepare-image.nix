@@ -24,7 +24,7 @@
 {
   # Description of the package set to be used (will be loaded by load-pkgs.nix)
   srcType ? "nixpkgs",
-  srcArgs ? "nixos-19.03",
+  srcArgs ? "nixos-20.03",
   system ? "x86_64-linux",
   importArgs ? { },
   # Path to load-pkgs.nix

@@ -29,7 +29,7 @@ Manifest caching *only* applies in the following cases:
 Manifest caching *never* applies in the following cases:
 
 * package source specification is a local file path (i.e. `NIXERY_PKGS_PATH`)
-* package source specification is a NixOS channel (e.g. `NIXERY_CHANNEL=nixos-19.03`)
+* package source specification is a NixOS channel (e.g. `NIXERY_CHANNEL=nixos-20.03`)
 * package source specification is a git branch or tag (e.g. `staging`, `master` or `latest`)
 
 It is thus always preferable to request images from a fully-pinned package

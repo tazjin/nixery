@@ -54,7 +54,7 @@ own instance of Nixery.
 ### Which revision of `nixpkgs` is used for the builds?
 
 The instance at `nixery.dev` tracks a recent NixOS channel, currently NixOS
-19.03. The channel is updated several times a day.
+20.03. The channel is updated several times a day.
 
 Private registries might be configured to track a different channel (such as
 `nixos-unstable`) or even track a git repository with custom packages.
