@@ -70,12 +70,16 @@ func channelMetadata(channel string) meta {
 		},
 	}
 
-	resp, err := c.Get(fmt.Sprintf("https://nixos.org/channels/%s", channel))
+	resp, err := c.Get(fmt.Sprintf("https://channels.nixos.org/%s", channel))
 	failOn(err, "failed to retrieve channel metadata")
 
 	loc, err := resp.Location()
 	failOn(err, "no redirect location given for channel")
-	if resp.StatusCode != 302 {
+
+	// TODO(tazjin): These redirects are currently served as 301s, but
+	// should (and used to) be 302s. Check if/when this is fixed and
+	// update accordingly.
+	if !(resp.StatusCode == 301 || resp.StatusCode == 302) {
 		log.Fatalf("Expected redirect for channel, but received '%s'\n", resp.Status)
 	}
 
@@ -85,6 +89,9 @@ func channelMetadata(channel string) meta {
 	defer commitResp.Body.Close()
 	commit, err := ioutil.ReadAll(commitResp.Body)
 	failOn(err, "failed to read commit from response")
+	if commitResp.StatusCode != 200 {
+		log.Fatalf("non-success status code when fetching commit: %s", string(commit), commitResp.StatusCode)
+	}
 
 	return meta{
 		name:   channel,
