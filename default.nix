@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{ pkgs ? import <nixpkgs> { }
+{ pkgs ? import ./nixpkgs-pin.nix
 , preLaunch ? ""
 , extraPackages ? []
 , maxLayers ? 20 }:
