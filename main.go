@@ -55,6 +55,7 @@ var version string = "devel"
 var (
 	manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/([\w|\-|\.|\_]+)$`)
 	layerRegex    = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
+	tagsRegex     = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/tags/list$`)
 )
 
 // Downloads the popularity information for the package set from the
@@ -181,6 +182,27 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}).Error("failed to serve layer from storage backend")
 		}
 
+		return
+	}
+
+	tagsMatches := tagsRegex.FindStringSubmatch(r.RequestURI)
+	if len(tagsMatches) == 2 {
+		tags, err := h.state.Cfg.Pkgs.Tags()
+		if err != nil {
+			writeError(w, 500, "UNKNOWN", "failed to list tags")
+
+			log.WithError(err).WithFields(log.Fields{
+				"image": tagsMatches[1],
+			}).Error(err)
+
+			return
+		}
+		manifest, _ := json.Marshal(map[string]interface{}{
+			"name": tagsMatches[1],
+			"tags": tags,
+		})
+		w.Header().Add("Content-Type", manifestMediaType)
+		w.Write(manifest)
 		return
 	}
 
