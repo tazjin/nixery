@@ -12,7 +12,6 @@ before_script:
   - echo ${GOOGLE_KEY} | base64 -d > test-files/key.json
   - echo ${GCS_SIGNING_PEM} | base64 -d > test-files/gcs.pem
   - nix-env -f '<nixpkgs>' -iA cachix -A go
-  - cachix use nixery
 script:
   - test -z $(gofmt -l server/ build-image/)
   - nix-build --arg maxLayers 1 | cachix push nixery
