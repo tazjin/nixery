@@ -150,18 +150,18 @@ func (b *GCSBackend) Move(ctx context.Context, old, new string) error {
 	return nil
 }
 
-func (b *GCSBackend) ServeLayer(digest string, r *http.Request, w http.ResponseWriter) error {
+func (b *GCSBackend) Serve(digest string, r *http.Request, w http.ResponseWriter) error {
 	url, err := b.constructLayerUrl(digest)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
-			"layer":  digest,
+			"digest": digest,
 			"bucket": b.bucket,
 		}).Error("failed to sign GCS URL")
 
 		return err
 	}
 
-	log.WithField("layer", digest).Info("redirecting layer request to GCS bucket")
+	log.WithField("digest", digest).Info("redirecting blob request to GCS bucket")
 
 	w.Header().Set("Location", url)
 	w.WriteHeader(303)
