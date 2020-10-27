@@ -53,8 +53,8 @@ var version string = "devel"
 // routes required for serving images, since pushing and other such
 // functionality is not available.
 var (
-	manifestTagRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/([\w|\-|\.|\_]+)$`)
-	layerRegex       = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
+	manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/([\w|\-|\.|\_]+)$`)
+	blobRegex     = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/(blobs|manifests)/sha256:(\w+)$`)
 )
 
 // Downloads the popularity information for the package set from the
@@ -156,15 +156,16 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	w.Write(manifest)
 }
 
-// serveLayer serves an image layer from storage (if it exists).
-func (h *registryHandler) serveLayer(w http.ResponseWriter, r *http.Request, digest string) {
+// serveBlob serves a blob from storage by digest
+func (h *registryHandler) serveBlob(w http.ResponseWriter, r *http.Request, blobType, digest string) {
 	storage := h.state.Storage
 	err := storage.Serve(digest, r, w)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
-			"layer":   digest,
+			"type":    blobType,
+			"digest":  digest,
 			"backend": storage.Name(),
-		}).Error("failed to serve layer from storage backend")
+		}).Error("failed to serve blob from storage backend")
 	}
 }
 
@@ -176,16 +177,16 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build & serve a manifest by tag
-	manifestMatches := manifestTagRegex.FindStringSubmatch(r.RequestURI)
+	manifestMatches := manifestRegex.FindStringSubmatch(r.RequestURI)
 	if len(manifestMatches) == 3 {
 		h.serveManifestTag(w, r, manifestMatches[1], manifestMatches[2])
 		return
 	}
 
-	// Serve an image layer
-	layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
-	if len(layerMatches) == 3 {
-		h.serveLayer(w, r, layerMatches[2])
+	// Serve a blob by digest
+	layerMatches := blobRegex.FindStringSubmatch(r.RequestURI)
+	if len(layerMatches) == 4 {
+		h.serveBlob(w, r, layerMatches[2], layerMatches[3])
 		return
 	}
 
