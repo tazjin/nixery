@@ -124,6 +124,12 @@ correct caching behaviour, addressing and so on.
 
 See [issue #4](https://github.com/google/nixery/issues/4).
 
+### Nix-native builder
+
+The image building and layering functionality of Nixery will be extracted into a
+separate Nix function, which will make it possible to build images directly in
+Nix builds.
+
 [Nix]: https://nixos.org/
 [layering strategy]: https://storage.googleapis.com/nixdoc/nixery-layers.html
 [gist]: https://gist.github.com/tazjin/08f3d37073b3590aacac424303e6f745
