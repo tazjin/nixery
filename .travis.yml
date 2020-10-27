@@ -11,10 +11,10 @@ before_script:
   - mkdir test-files
   - echo ${GOOGLE_KEY} | base64 -d > test-files/key.json
   - echo ${GCS_SIGNING_PEM} | base64 -d > test-files/gcs.pem
-  - nix-env -f '<nixpkgs>' -iA cachix -A go
+  - nix-env -f '<nixpkgs>' -iA -A go
 script:
   - test -z $(gofmt -l server/ build-image/)
-  - nix-build --arg maxLayers 1 | cachix push nixery
+  - nix-build --arg maxLayers 1
 
   # This integration test makes sure that the container image built
   # for Nixery itself runs fine in Docker, and that images pulled
