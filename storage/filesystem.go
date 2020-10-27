@@ -83,13 +83,13 @@ func (b *FSBackend) Move(ctx context.Context, old, new string) error {
 	return os.Rename(path.Join(b.path, old), newpath)
 }
 
-func (b *FSBackend) ServeLayer(digest string, r *http.Request, w http.ResponseWriter) error {
+func (b *FSBackend) Serve(digest string, r *http.Request, w http.ResponseWriter) error {
 	p := path.Join(b.path, "layers", digest)
 
 	log.WithFields(log.Fields{
-		"layer": digest,
-		"path":  p,
-	}).Info("serving layer from filesystem")
+		"digest": digest,
+		"path":   p,
+	}).Info("serving blob from filesystem")
 
 	http.ServeFile(w, r, p)
 	return nil

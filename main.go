@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2019-2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not
 // use this file except in compliance with the License. You may obtain a copy of
@@ -159,7 +159,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 // serveLayer serves an image layer from storage (if it exists).
 func (h *registryHandler) serveLayer(w http.ResponseWriter, r *http.Request, digest string) {
 	storage := h.state.Storage
-	err := storage.ServeLayer(digest, r, w)
+	err := storage.Serve(digest, r, w)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"layer":   digest,

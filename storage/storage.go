@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2019-2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not
 // use this file except in compliance with the License. You may obtain a copy of
@@ -46,6 +46,6 @@ type Backend interface {
 	Move(ctx context.Context, old, new string) error
 
 	// Serve provides a handler function to serve HTTP requests
-	// for layers in the storage backend.
-	ServeLayer(digest string, r *http.Request, w http.ResponseWriter) error
+	// for objects in the storage backend.
+	Serve(digest string, r *http.Request, w http.ResponseWriter) error
 }
