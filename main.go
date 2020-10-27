@@ -26,8 +26,11 @@
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -153,6 +156,38 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	// field represents valid JSON data.
 	manifest, _ := json.Marshal(buildResult.Manifest)
 	w.Header().Add("Content-Type", manifestMediaType)
+
+	// The manifest needs to be persisted to the blob storage (to become
+	// available for clients that fetch manifests by their hash, e.g.
+	// containerd) and served to the client.
+	//
+	// Since we have no stable key to address this manifest (it may be
+	// uncacheable, yet still addressable by blob) we need to separate
+	// out the hashing, uploading and serving phases. The latter is
+	// especially important as clients may start to fetch it by digest
+	// as soon as they see a response.
+	sha256sum := fmt.Sprintf("%x", sha256.Sum256(manifest))
+	path := "layers/" + sha256sum
+	ctx := context.TODO()
+
+	_, _, err = h.state.Storage.Persist(ctx, path, func(sw io.Writer) (string, int64, error) {
+		// We already know the hash, so no additional hash needs to be
+		// constructed here.
+		written, err := sw.Write(manifest)
+		return sha256sum, int64(written), err
+	})
+
+	if err != nil {
+		writeError(w, 500, "MANIFEST_UPLOAD", "could not upload manifest to blob store")
+
+		log.WithError(err).WithFields(log.Fields{
+			"image": name,
+			"tag":   tag,
+		}).Error("could not upload manifest")
+
+		return
+	}
+
 	w.Write(manifest)
 }
 
