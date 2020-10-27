@@ -53,8 +53,8 @@ var version string = "devel"
 // routes required for serving images, since pushing and other such
 // functionality is not available.
 var (
-	manifestRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/([\w|\-|\.|\_]+)$`)
-	layerRegex    = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
+	manifestTagRegex = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/manifests/([\w|\-|\.|\_]+)$`)
+	layerRegex       = regexp.MustCompile(`^/v2/([\w|\-|\.|\_|\/]+)/blobs/sha256:(\w+)$`)
 )
 
 // Downloads the popularity information for the package set from the
@@ -112,75 +112,80 @@ type registryHandler struct {
 	state *builder.State
 }
 
+// Serve a manifest by tag, building it via Nix and populating caches
+// if necessary.
+func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Request, name string, tag string) {
+	log.WithFields(log.Fields{
+		"image": name,
+		"tag":   tag,
+	}).Info("requesting image manifest")
+
+	image := builder.ImageFromName(name, tag)
+	buildResult, err := builder.BuildImage(r.Context(), h.state, &image)
+
+	if err != nil {
+		writeError(w, 500, "UNKNOWN", "image build failure")
+
+		log.WithError(err).WithFields(log.Fields{
+			"image": name,
+			"tag":   tag,
+		}).Error("failed to build image manifest")
+
+		return
+	}
+
+	// Some error types have special handling, which is applied
+	// here.
+	if buildResult.Error == "not_found" {
+		s := fmt.Sprintf("Could not find Nix packages: %v", buildResult.Pkgs)
+		writeError(w, 404, "MANIFEST_UNKNOWN", s)
+
+		log.WithFields(log.Fields{
+			"image":    name,
+			"tag":      tag,
+			"packages": buildResult.Pkgs,
+		}).Warn("could not find Nix packages")
+
+		return
+	}
+
+	// This marshaling error is ignored because we know that this
+	// field represents valid JSON data.
+	manifest, _ := json.Marshal(buildResult.Manifest)
+	w.Header().Add("Content-Type", manifestMediaType)
+	w.Write(manifest)
+}
+
+// serveLayer serves an image layer from storage (if it exists).
+func (h *registryHandler) serveLayer(w http.ResponseWriter, r *http.Request, digest string) {
+	storage := h.state.Storage
+	err := storage.ServeLayer(digest, r, w)
+	if err != nil {
+		log.WithError(err).WithFields(log.Fields{
+			"layer":   digest,
+			"backend": storage.Name(),
+		}).Error("failed to serve layer from storage backend")
+	}
+}
+
+// ServeHTTP dispatches HTTP requests to the matching handlers.
 func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Acknowledge that we speak V2 with an empty response
 	if r.RequestURI == "/v2/" {
 		return
 	}
 
-	// Serve the manifest (straight from Nix)
-	manifestMatches := manifestRegex.FindStringSubmatch(r.RequestURI)
+	// Build & serve a manifest by tag
+	manifestMatches := manifestTagRegex.FindStringSubmatch(r.RequestURI)
 	if len(manifestMatches) == 3 {
-		imageName := manifestMatches[1]
-		imageTag := manifestMatches[2]
-
-		log.WithFields(log.Fields{
-			"image": imageName,
-			"tag":   imageTag,
-		}).Info("requesting image manifest")
-
-		image := builder.ImageFromName(imageName, imageTag)
-		buildResult, err := builder.BuildImage(r.Context(), h.state, &image)
-
-		if err != nil {
-			writeError(w, 500, "UNKNOWN", "image build failure")
-
-			log.WithError(err).WithFields(log.Fields{
-				"image": imageName,
-				"tag":   imageTag,
-			}).Error("failed to build image manifest")
-
-			return
-		}
-
-		// Some error types have special handling, which is applied
-		// here.
-		if buildResult.Error == "not_found" {
-			s := fmt.Sprintf("Could not find Nix packages: %v", buildResult.Pkgs)
-			writeError(w, 404, "MANIFEST_UNKNOWN", s)
-
-			log.WithFields(log.Fields{
-				"image":    imageName,
-				"tag":      imageTag,
-				"packages": buildResult.Pkgs,
-			}).Warn("could not find Nix packages")
-
-			return
-		}
-
-		// This marshaling error is ignored because we know that this
-		// field represents valid JSON data.
-		manifest, _ := json.Marshal(buildResult.Manifest)
-		w.Header().Add("Content-Type", manifestMediaType)
-		w.Write(manifest)
+		h.serveManifestTag(w, r, manifestMatches[1], manifestMatches[2])
 		return
 	}
 
-	// Serve an image layer. For this we need to first ask Nix for
-	// the manifest, then proceed to extract the correct layer from
-	// it.
+	// Serve an image layer
 	layerMatches := layerRegex.FindStringSubmatch(r.RequestURI)
 	if len(layerMatches) == 3 {
-		digest := layerMatches[2]
-		storage := h.state.Storage
-		err := storage.ServeLayer(digest, r, w)
-		if err != nil {
-			log.WithError(err).WithFields(log.Fields{
-				"layer":   digest,
-				"backend": storage.Name(),
-			}).Error("failed to serve layer from storage backend")
-		}
-
+		h.serveLayer(w, r, layerMatches[2])
 		return
 	}
 

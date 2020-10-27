@@ -140,7 +140,7 @@ func pkgSourceFromEnv() (PkgSource, error) {
 	}
 
 	if git := os.Getenv("NIXERY_PKGS_REPO"); git != "" {
-		log.WithField("repo", git).Info("using NIx package set from git repository")
+		log.WithField("repo", git).Info("using Nix package set from git repository")
 
 		return &GitSource{
 			repository: git,
