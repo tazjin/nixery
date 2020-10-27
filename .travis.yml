@@ -14,7 +14,7 @@ before_script:
   - nix-env -f '<nixpkgs>' -iA -A go
 script:
   - test -z $(gofmt -l server/ build-image/)
-  - nix-build --arg maxLayers 1
+  - nix-build --arg maxLayers 2
 
   # This integration test makes sure that the container image built
   # for Nixery itself runs fine in Docker, and that images pulled
