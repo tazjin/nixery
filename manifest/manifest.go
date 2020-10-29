@@ -28,8 +28,8 @@ const (
 	schemaVersion = 2
 
 	// media types
-	manifestType = "application/vnd.docker.distribution.manifest.v2+json"
-	layerType    = "application/vnd.docker.image.rootfs.diff.tar.gzip"
+	ManifestType = "application/vnd.docker.distribution.manifest.v2+json"
+	LayerType    = "application/vnd.docker.image.rootfs.diff.tar.gzip"
 	configType   = "application/vnd.docker.container.image.v1+json"
 
 	// image config constants
@@ -117,7 +117,7 @@ func Manifest(arch string, layers []Entry) (json.RawMessage, ConfigLayer) {
 	hashes := make([]string, len(layers))
 	for i, l := range layers {
 		hashes[i] = l.TarHash
-		l.MediaType = layerType
+		l.MediaType = LayerType
 		l.TarHash = ""
 		layers[i] = l
 	}
@@ -126,7 +126,7 @@ func Manifest(arch string, layers []Entry) (json.RawMessage, ConfigLayer) {
 
 	m := manifest{
 		SchemaVersion: schemaVersion,
-		MediaType:     manifestType,
+		MediaType:     ManifestType,
 		Config: Entry{
 			MediaType: configType,
 			Size:      int64(len(c.Config)),

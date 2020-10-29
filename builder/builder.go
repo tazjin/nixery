@@ -420,7 +420,7 @@ func (b *byteCounter) Write(p []byte) (n int, err error) {
 // image manifest.
 func uploadHashLayer(ctx context.Context, s *State, key string, lw layerWriter) (*manifest.Entry, error) {
 	path := "staging/" + key
-	sha256sum, size, err := s.Storage.Persist(ctx, path, func(sw io.Writer) (string, int64, error) {
+	sha256sum, size, err := s.Storage.Persist(ctx, path, manifest.LayerType, func(sw io.Writer) (string, int64, error) {
 		// Sets up a "multiwriter" that simultaneously runs both hash
 		// algorithms and uploads to the storage backend.
 		shasum := sha256.New()
