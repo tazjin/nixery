@@ -38,6 +38,7 @@ import (
 	"github.com/google/nixery/builder"
 	"github.com/google/nixery/config"
 	"github.com/google/nixery/logs"
+	mf "github.com/google/nixery/manifest"
 	"github.com/google/nixery/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -170,7 +171,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	path := "layers/" + sha256sum
 	ctx := context.TODO()
 
-	_, _, err = h.state.Storage.Persist(ctx, path, func(sw io.Writer) (string, int64, error) {
+	_, _, err = h.state.Storage.Persist(ctx, path, mf.ManifestType, func(sw io.Writer) (string, int64, error) {
 		// We already know the hash, so no additional hash needs to be
 		// constructed here.
 		written, err := sw.Write(manifest)

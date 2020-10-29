@@ -36,7 +36,7 @@ type Backend interface {
 	// It needs to return the SHA256 hash of the data written as
 	// well as the total number of bytes, as those are required
 	// for the image manifest.
-	Persist(context.Context, string, Persister) (string, int64, error)
+	Persist(ctx context.Context, path, contentType string, f Persister) (string, int64, error)
 
 	// Fetch retrieves data from the storage backend.
 	Fetch(ctx context.Context, path string) (io.ReadCloser, error)

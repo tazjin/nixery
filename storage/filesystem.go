@@ -49,7 +49,8 @@ func (b *FSBackend) Name() string {
 	return fmt.Sprintf("Filesystem (%s)", b.path)
 }
 
-func (b *FSBackend) Persist(ctx context.Context, key string, f Persister) (string, int64, error) {
+// TODO(tazjin): Implement support for persisting content-types for the filesystem backend.
+func (b *FSBackend) Persist(ctx context.Context, key, _type string, f Persister) (string, int64, error) {
 	full := path.Join(b.path, key)
 	dir := path.Dir(full)
 	err := os.MkdirAll(dir, 0755)

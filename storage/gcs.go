@@ -80,17 +80,36 @@ func (b *GCSBackend) Name() string {
 	return "Google Cloud Storage (" + b.bucket + ")"
 }
 
-func (b *GCSBackend) Persist(ctx context.Context, path string, f Persister) (string, int64, error) {
+func (b *GCSBackend) Persist(ctx context.Context, path, contentType string, f Persister) (string, int64, error) {
 	obj := b.handle.Object(path)
 	w := obj.NewWriter(ctx)
 
 	hash, size, err := f(w)
 	if err != nil {
-		log.WithError(err).WithField("path", path).Error("failed to upload to GCS")
+		log.WithError(err).WithField("path", path).Error("failed to write to GCS")
 		return hash, size, err
 	}
 
-	return hash, size, w.Close()
+	err = w.Close()
+	if err != nil {
+		log.WithError(err).WithField("path", path).Error("failed to complete GCS upload")
+		return hash, size, err
+	}
+
+	// GCS natively supports content types for objects, which will be
+	// used when serving them back.
+	if contentType != "" {
+		_, err = obj.Update(ctx, storage.ObjectAttrsToUpdate{
+			ContentType: contentType,
+		})
+
+		if err != nil {
+			log.WithError(err).WithField("path", path).Error("failed to update object attrs")
+			return hash, size, err
+		}
+	}
+
+	return hash, size, nil
 }
 
 func (b *GCSBackend) Fetch(ctx context.Context, path string) (io.ReadCloser, error) {
