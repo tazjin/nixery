@@ -32,7 +32,7 @@ type PkgSource interface {
 	// for calling Nix.
 	Render(tag string) (string, string)
 
-	// Create a key by which builds for this source and iamge
+	// Create a key by which builds for this source and image
 	// combination can be cached.
 	//
 	// The empty string means that this value is not cacheable due
