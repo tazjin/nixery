@@ -20,10 +20,9 @@ and/or large dependencies.
 A public instance as well as additional documentation is available at
 [nixery.dev][public].
 
-The project started out inspired by the [buildLayeredImage][] blog post with the
-intention of becoming a Kubernetes controller that can serve declarative image
-specifications specified in CRDs as container images. The design for this was
-outlined in [a public gist][gist].
+You can watch the NixCon 2019 [talk about
+Nixery](https://www.youtube.com/watch?v=pOI9H4oeXqA) for more information about
+the project and its use-cases.
 
 This is not an officially supported Google project.
 
@@ -114,6 +113,13 @@ These extra configuration variables must be set to configure storage backends:
   (**optional** for `gcs`)
 * `STORAGE_PATH`: Path to a folder in which to store and from which to serve
   data (**required** for `filesystem`)
+
+### Background
+
+The project started out inspired by the [buildLayeredImage][] blog post with the
+intention of becoming a Kubernetes controller that can serve declarative image
+specifications specified in CRDs as container images. The design for this was
+outlined in [a public gist][gist].
 
 ## Roadmap
 
