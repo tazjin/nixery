@@ -224,6 +224,7 @@ func main() {
 		log.Fatalf("Nix channel must be specified as first argument")
 	}
 
+
 	err := os.MkdirAll("popcache", 0755)
 	if err != nil {
 		log.Fatalf("Failed to create 'popcache' directory in current folder: %s\n", err)
@@ -281,7 +282,12 @@ func main() {
 	}
 
 	bytes, _ := json.Marshal(counts)
-	outfile := fmt.Sprintf("popularity-%s-%s.json", meta.name, meta.commit)
+	var outfile string
+	if len(os.Args) >= 3 {
+		outfile = os.Args[2]
+	} else {
+		outfile = fmt.Sprintf("popularity-%s-%s.json", meta.name, meta.commit)
+	}
 	err = ioutil.WriteFile(outfile, bytes, 0644)
 	if err != nil {
 		log.Fatalf("Failed to write output to '%s': %s\n", outfile, err)

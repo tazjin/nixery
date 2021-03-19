@@ -88,6 +88,7 @@ variables:
   (defaults to 60)
 * `NIX_POPULARITY_URL`: URL to a file containing popularity data for
   the package set (see `popcount/`)
+* `NIXERY_COMPUTE_POPULARITY`: if `NIX_POPULARITY_URL` is not specified, and if the channel is set, the popularity data is computed by default. Setting this flag to `false` allows to disable that.
 
 If the `GOOGLE_APPLICATION_CREDENTIALS` environment variable is set to a service
 account key, Nixery will also use this key to create [signed URLs][] for layers

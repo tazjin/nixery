@@ -47,12 +47,13 @@ const (
 
 // Config holds the Nixery configuration options.
 type Config struct {
-	Port    string    // Port on which to launch HTTP server
-	Pkgs    PkgSource // Source for Nix package set
-	Timeout string    // Timeout for a single Nix builder (seconds)
-	WebDir  string    // Directory with static web assets
-	PopUrl  string    // URL to the Nix package popularity count
-	Backend Backend   // Storage backend to use for Nixery
+	Port    string          // Port on which to launch HTTP server
+	Pkgs    PkgSource       // Source for Nix package set
+	Timeout string          // Timeout for a single Nix builder (seconds)
+	WebDir  string          // Directory with static web assets
+	PopUrl  string          // URL to the Nix package popularity count
+	GeneratePopularity bool // whether to generate popularity if no url is specified
+	Backend Backend         // Storage backend to use for Nixery
 }
 
 func FromEnv() (Config, error) {
@@ -79,6 +80,7 @@ func FromEnv() (Config, error) {
 		Timeout: getConfig("NIX_TIMEOUT", "Nix builder timeout", "60"),
 		WebDir:  getConfig("WEB_DIR", "Static web file dir", ""),
 		PopUrl:  os.Getenv("NIX_POPULARITY_URL"),
+		GeneratePopularity: os.Getenv("NIXERY_COMPUTE_POPULARITY") != "false",
 		Backend: b,
 	}, nil
 }
