@@ -195,6 +195,16 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 // serveBlob serves a blob from storage by digest
 func (h *registryHandler) serveBlob(w http.ResponseWriter, r *http.Request, blobType, digest string) {
 	storage := h.state.Storage
+	switch blobType {
+	case "manifests":
+		// It is necessary to set the correct content-type when serving manifests.
+		// Otherwise, you may get the following mysterious error message when pulling:
+		// "Error response from daemon: missing signature key"
+		w.Header().Add("Content-Type", mf.ManifestType)
+	case "blobs":
+		// It is not strictly necessary to set this content-type, but since we're here...
+		w.Header().Add("Content-Type", mf.LayerType)
+	}
 	err := storage.Serve(digest, r, w)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
