@@ -23,7 +23,7 @@ let
   fetchImportChannel = channel:
     let
       url =
-        "https://github.com/NixOS/nixpkgs-channels/archive/${channel}.tar.gz";
+        "https://github.com/NixOS/nixpkgs/archive/${channel}.tar.gz";
     in import (fetchTarball url) importArgs;
 
   # If a git repository is requested, it is retrieved via
