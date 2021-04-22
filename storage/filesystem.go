@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/pkg/xattr"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,8 +50,7 @@ func (b *FSBackend) Name() string {
 	return fmt.Sprintf("Filesystem (%s)", b.path)
 }
 
-// TODO(tazjin): Implement support for persisting content-types for the filesystem backend.
-func (b *FSBackend) Persist(ctx context.Context, key, _type string, f Persister) (string, int64, error) {
+func (b *FSBackend) Persist(ctx context.Context, key, contentType string, f Persister) (string, int64, error) {
 	full := path.Join(b.path, key)
 	dir := path.Dir(full)
 	err := os.MkdirAll(dir, 0755)
@@ -65,6 +65,12 @@ func (b *FSBackend) Persist(ctx context.Context, key, _type string, f Persister)
 		return "", 0, err
 	}
 	defer file.Close()
+
+	err = xattr.Set(full, "user.mime_type", []byte(contentType))
+	if err != nil {
+		log.WithError(err).WithField("file", full).Error("failed to store file type in xattrs")
+		return "", 0, err
+	}
 
 	return f(file)
 }
@@ -91,6 +97,13 @@ func (b *FSBackend) Serve(digest string, r *http.Request, w http.ResponseWriter)
 		"digest": digest,
 		"path":   p,
 	}).Info("serving blob from filesystem")
+
+	contentType, err := xattr.Get(p, "user.mime_type")
+	if err != nil {
+		log.WithError(err).WithField("file", p).Error("failed to read file type from xattrs")
+		return err
+	}
+	w.Header().Add("Content-Type", string(contentType))
 
 	http.ServeFile(w, r, p)
 	return nil
