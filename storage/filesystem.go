@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -49,8 +50,7 @@ func (b *FSBackend) Name() string {
 	return fmt.Sprintf("Filesystem (%s)", b.path)
 }
 
-// TODO(tazjin): Implement support for persisting content-types for the filesystem backend.
-func (b *FSBackend) Persist(ctx context.Context, key, _type string, f Persister) (string, int64, error) {
+func (b *FSBackend) Persist(ctx context.Context, key, contentType string, f Persister) (string, int64, error) {
 	full := path.Join(b.path, key)
 	dir := path.Dir(full)
 	err := os.MkdirAll(dir, 0755)
@@ -65,6 +65,18 @@ func (b *FSBackend) Persist(ctx context.Context, key, _type string, f Persister)
 		return "", 0, err
 	}
 	defer file.Close()
+
+	typefile, err := os.OpenFile(full+".type", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.WithError(err).WithField("file", full+".type").Error("failed to create file")
+		return "", 0, err
+	}
+	_, err = typefile.Write([]byte(contentType))
+	if err != nil {
+		log.WithError(err).WithField("file", full+".type").Error("failed to write file")
+		return "", 0, err
+	}
+	typefile.Close()
 
 	return f(file)
 }
@@ -81,6 +93,10 @@ func (b *FSBackend) Move(ctx context.Context, old, new string) error {
 		return err
 	}
 
+	err = os.Rename(path.Join(b.path, old)+".type", newpath+".type")
+	if err != nil {
+		return err
+	}
 	return os.Rename(path.Join(b.path, old), newpath)
 }
 
@@ -91,6 +107,13 @@ func (b *FSBackend) Serve(digest string, r *http.Request, w http.ResponseWriter)
 		"digest": digest,
 		"path":   p,
 	}).Info("serving blob from filesystem")
+
+	contentType, err := ioutil.ReadFile(p + ".type")
+	if err != nil {
+		log.WithError(err).WithField("file", p+".type").Error("failed to read content-type file")
+		return err
+	}
+	w.Header().Add("Content-Type", string(contentType))
 
 	http.ServeFile(w, r, p)
 	return nil
