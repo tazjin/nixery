@@ -1,0 +1,29 @@
+# Build Nixery, spin up an instance and pull an image from it.
+name: "Build and test Nixery"
+on:
+  push:
+    branches:
+      - master
+  pull_request: {}
+permissions: "read-all"
+env:
+  NIX_PATH: "nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/0a40a3999eb4d577418515da842a2622a64880c5.tar.gz"
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Do we have Docker?"
+        run: |
+          docker ps -a
+      - name: Install Nix
+        uses: cachix/install-nix-action@v13
+      - name: Checkout
+        uses: actions/checkout@v2.3.4
+      - name: Prepare environment
+        run: |
+          mkdir test-storage
+          nix-env -f '<nixpkgs>' -iA go
+      - name: Check formatting
+        run: "test -z $(gofmt -l .)"
+      - name: Build Nixery
+        run: "nix-build --arg maxLayers 2"
