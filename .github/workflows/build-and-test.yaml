@@ -11,20 +11,15 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - name: "Do we have Docker?"
-        run: |
-          docker ps -a
       - name: Install Nix
         uses: cachix/install-nix-action@v13
       - name: Checkout
         uses: actions/checkout@v2.3.4
       - name: Prepare environment
-        run: |
-          mkdir test-storage
-          nix-env -f '<nixpkgs>' -iA go
+        run: nix-env -f '<nixpkgs>' -iA go
       - name: Check formatting
         run: "test -z $(gofmt -l .)"
       - name: Build Nixery
-        run: "nix-build --arg maxLayers 2"
+        run: "nix-build --arg maxLayers 2 --no-out-link"
       - name: Run integration test
         run: scripts/integration-test.sh
