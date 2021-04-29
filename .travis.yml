@@ -10,7 +10,6 @@ before_script:
   - echo "Running Nixery CI build on $(uname -m)"
   - mkdir test-files
   - echo ${GOOGLE_KEY} | base64 -d > test-files/key.json
-  - echo ${GCS_SIGNING_PEM} | base64 -d > test-files/gcs.pem
   - nix-env -f '<nixpkgs>' -iA -A go
 script:
   - test -z $(gofmt -l server/ build-image/)
