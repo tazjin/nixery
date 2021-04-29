@@ -5,7 +5,6 @@ on:
     branches:
       - master
   pull_request: {}
-permissions: "read-all"
 env:
   NIX_PATH: "nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/0a40a3999eb4d577418515da842a2622a64880c5.tar.gz"
 jobs:
