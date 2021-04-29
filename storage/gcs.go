@@ -222,6 +222,10 @@ func signingOptsFromEnv() (*storage.SignedURLOptions, error) {
 // Signing the URL allows unauthenticated clients to retrieve objects from the
 // bucket.
 //
+// In case signing is not configured, a redirect to storage.googleapis.com is
+// issued, which means the underlying bucket objects need to be publicly
+// accessible.
+//
 // The Docker client is known to follow redirects, but this might not be true
 // for all other registry clients.
 func (b *GCSBackend) constructLayerUrl(digest string) (string, error) {
