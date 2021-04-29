@@ -26,3 +26,5 @@ jobs:
         run: "test -z $(gofmt -l .)"
       - name: Build Nixery
         run: "nix-build --arg maxLayers 2"
+      - name: Run integration test
+        run: scripts/integration-test.sh
