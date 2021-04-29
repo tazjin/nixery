@@ -94,6 +94,10 @@ account key, Nixery will also use this key to create [signed URLs][] for layers
 in the storage bucket. This makes it possible to serve layers from a bucket
 without having to make them publicly available.
 
+In case the `GOOGLE_APPLICATION_CREDENTIALS` environment variable is not set, a
+redirect to storage.googleapis.com is issued, which means the underlying bucket
+objects need to be publicly accessible.
+
 ### Storage
 
 Nixery supports multiple different storage backends in which its build cache and
