@@ -20,6 +20,6 @@ jobs:
       - name: Check formatting
         run: "test -z $(gofmt -l .)"
       - name: Build Nixery
-        run: "nix-build --arg maxLayers 2 --no-out-link"
+        run: "nix-build --no-out-link"
       - name: Run integration test
         run: scripts/integration-test.sh

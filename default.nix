@@ -20,7 +20,7 @@
 with pkgs;
 
 let
-  inherit (pkgs) buildGoPackage;
+  inherit (pkgs) buildGoModule;
 
   # Current Nixery commit - this is used as the Nixery version in
   # builds to distinguish errors between deployed versions, see
@@ -32,35 +32,17 @@ let
   #
   # Users should use the nixery-bin derivation below instead as it
   # provides the paths of files needed at runtime.
-  nixery-server = buildGoPackage rec {
+  nixery-server = buildGoModule rec {
     name = "nixery-server";
-    goDeps = ./go-deps.nix;
     src = ./.;
-
-    goPackagePath = "github.com/google/nixery";
     doCheck = true;
 
-    # Simplify the Nix build instructions for Go to just the basics
-    # required to get Nixery up and running with the additional linker
-    # flags required.
-    outputs = [ "out" ];
-    preConfigure = "bin=$out";
-    buildPhase = ''
-      runHook preBuild
-      runHook renameImport
+    # Needs to be updated after every modification of go.mod/go.sum
+    vendorSha256 = "1ff0kfww6fy6pnvyva7x8cc6l1d12aafps48wrkwawk2qjy9a8b9";
 
-      export GOBIN="$out/bin"
-      go install -ldflags "-X main.version=$(cat ${nixery-commit-hash})" ${goPackagePath}
-    '';
-
-    fixupPhase = ''
-      remove-references-to -t ${go} $out/bin/nixery
-    '';
-
-    checkPhase = ''
-      go vet ${goPackagePath}
-      go test ${goPackagePath}
-    '';
+    buildFlagsArray = [
+      "-ldflags=-s -w -X main.version=${nixery-commit-hash}"
+    ];
   };
 in rec {
   # Implementation of the Nix image building logic
