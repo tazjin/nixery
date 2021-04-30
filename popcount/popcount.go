@@ -90,7 +90,7 @@ func channelMetadata(channel string) meta {
 	commit, err := ioutil.ReadAll(commitResp.Body)
 	failOn(err, "failed to read commit from response")
 	if commitResp.StatusCode != 200 {
-		log.Fatalf("non-success status code when fetching commit: %s", string(commit), commitResp.StatusCode)
+		log.Fatalf("non-success status code when fetching commit: %s (%v)", string(commit), commitResp.StatusCode)
 	}
 
 	return meta{
