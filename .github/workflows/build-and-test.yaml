@@ -19,6 +19,8 @@ jobs:
         run: nix-env -f '<nixpkgs>' -iA go
       - name: Check formatting
         run: "test -z $(gofmt -l .)"
+      - name: Run `go vet`
+        run: "go vet ./..."
       - name: Build Nixery
         run: "nix-build --no-out-link"
       - name: Run integration test
