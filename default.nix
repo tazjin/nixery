@@ -1,4 +1,4 @@
-# Copyright 2019 Google LLC
+# Copyright 2019-2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,12 +22,10 @@ with pkgs;
 let
   inherit (pkgs) buildGoPackage;
 
-  # Hash of all Nixery sources - this is used as the Nixery version in
+  # Current Nixery commit - this is used as the Nixery version in
   # builds to distinguish errors between deployed versions, see
   # server/logs.go for details.
-  nixery-src-hash = pkgs.runCommand "nixery-src-hash" {} ''
-    echo ${./.} | grep -Eo '[a-z0-9]{32}' | head -c 32 > $out
-  '';
+  nixery-commit-hash = pkgs.lib.commitIdFromGitRepo ./.git;
 
   # Go implementation of the Nixery server which implements the
   # container registry interface.
@@ -52,7 +50,7 @@ let
       runHook renameImport
 
       export GOBIN="$out/bin"
-      go install -ldflags "-X main.version=$(cat ${nixery-src-hash})" ${goPackagePath}
+      go install -ldflags "-X main.version=$(cat ${nixery-commit-hash})" ${goPackagePath}
     '';
 
     fixupPhase = ''
