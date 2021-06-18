@@ -7,3 +7,6 @@ debug/
 *.pem
 *.p12
 *.json
+
+# Created by the integration test
+var-cache-nixery

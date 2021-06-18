@@ -10,9 +10,17 @@ echo "Loaded Nixery image as ${IMG}"
 
 # Run the built nixery docker image in the background, but keep printing its
 # output as it occurs.
-docker run --rm -p 8080:8080 --name nixery \
+# We can't just mount a tmpfs to /var/cache/nixery, as tmpfs doesn't support
+# user xattrs.
+# So create a temporary directory in the current working directory, and hope
+# it's backed by something supporting user xattrs.
+# We'll notice it isn't if nixery starts complaining about not able to set
+# xattrs anyway.
+if [ -d var-cache-nixery ]; then rm -Rf var-cache-nixery; fi
+mkdir var-cache-nixery
+docker run --privileged --rm -p 8080:8080 --name nixery \
   -e PORT=8080 \
-  --mount type=tmpfs,destination=/var/cache/nixery \
+  --mount "type=bind,source=${PWD}/var-cache-nixery,target=/var/cache/nixery" \
   -e NIXERY_CHANNEL=nixos-unstable \
   -e NIXERY_STORAGE_BACKEND=filesystem \
   -e STORAGE_PATH=/var/cache/nixery \
