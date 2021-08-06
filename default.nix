@@ -15,7 +15,8 @@
 { pkgs ? import ./nixpkgs-pin.nix
 , preLaunch ? ""
 , extraPackages ? []
-, maxLayers ? 20 }:
+, maxLayers ? 20
+, commitHash ? null }@args:
 
 with pkgs;
 
@@ -25,7 +26,7 @@ let
   # Current Nixery commit - this is used as the Nixery version in
   # builds to distinguish errors between deployed versions, see
   # server/logs.go for details.
-  nixery-commit-hash = pkgs.lib.commitIdFromGitRepo ./.git;
+  nixery-commit-hash = args.commitHash or pkgs.lib.commitIdFromGitRepo ./.git;
 
   # Go implementation of the Nixery server which implements the
   # container registry interface.
