@@ -4,7 +4,7 @@
 
 -----------------
 
-[![Build Status](https://travis-ci.org/google/nixery.svg?branch=master)](https://travis-ci.org/google/nixery)
+[![Build Status](https://github.com/google/nixery/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/google/nixery/actions/workflows/build-and-test.yaml)
 
 **Nixery** is a Docker-compatible container registry that is capable of
 transparently building and serving container images using [Nix][].
