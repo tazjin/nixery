@@ -132,6 +132,18 @@ let
   contentsEnv = symlinkJoin {
     name = "bulk-layers";
     paths = allContents.contents;
+
+    # Ensure that there is always a /usr/bin/env for shell scripts
+    # that require it.
+    #
+    # Note that images which do not actually contain `coreutils` will
+    # still have this symlink, but it will be dangling.
+    #
+    # TODO(tazjin): Don't link this if coreutils is not included.
+    postBuild = ''
+      mkdir -p $out/usr/bin
+      ln -s ${coreutils}/bin/env $out/usr/bin/env
+    '';
   };
 
   # Image layer that contains the symlink forest created above. This
