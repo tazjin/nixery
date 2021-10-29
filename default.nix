@@ -39,7 +39,7 @@ let
     doCheck = true;
 
     # Needs to be updated after every modification of go.mod/go.sum
-    vendorSha256 = "1adjav0dxb97ws0w2k50rhk6r46wvfry6aj4sik3ninl525kd15s";
+    vendorSha256 = "1xnmyz2a5s5sck0fzhcz51nds4s80p0jw82dhkf4v2c4yzga83yk";
 
     buildFlagsArray = [
       "-ldflags=-s -w -X main.version=${nixery-commit-hash}"
