@@ -24,8 +24,6 @@ You can watch the NixCon 2019 [talk about
 Nixery](https://www.youtube.com/watch?v=pOI9H4oeXqA) for more information about
 the project and its use-cases.
 
-This is not an officially supported Google project.
-
 ## Demo
 
 Click the image to see an example in which an image containing an interactive
