@@ -33,8 +33,10 @@ Each path segment corresponds either to a key in the Nix package set, or a
 meta-package that automatically expands to several other packages.
 
 Meta-packages **must** be the first path component if they are used. Currently
-the only meta-package is `shell`, which provides a `bash`-shell with interactive
-configuration and standard tools like `coreutils`.
+there are only two meta-packages:
+- `shell`, which provides a `bash`-shell with interactive configuration and 
+  standard tools like `coreutils`.
+- `arm64`, which provides ARM64 binaries.
 
 **Tip:** When pulling from a private Nixery instance, replace `nixery.dev` in
 the above examples with your registry address.
