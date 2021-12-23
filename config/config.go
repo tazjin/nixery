@@ -70,7 +70,7 @@ func FromEnv() (Config, error) {
 	default:
 		log.WithField("values", []string{
 			"gcs",
-		}).Fatal("NIXERY_STORAGE_BUCKET must be set to a supported value")
+		}).Fatal("NIXERY_STORAGE_BACKEND must be set to a supported value (gcs or filesystem)")
 	}
 
 	return Config{
