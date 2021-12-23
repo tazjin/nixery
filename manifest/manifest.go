@@ -64,9 +64,10 @@ type imageConfig struct {
 		DiffIDs []string `json:"diff_ids"`
 	} `json:"rootfs"`
 
-	// sic! empty struct (rather than `null`) is required by the
-	// image metadata deserialiser in Kubernetes
-	Config struct{} `json:"config"`
+	Config struct {
+		Cmd []string `json:"cmd,omitempty"`
+		Env []string `json:"env,omitempty"`
+	} `json:"config"`
 }
 
 // ConfigLayer represents the configuration layer to be included in
@@ -83,12 +84,16 @@ type ConfigLayer struct {
 // Outside of this module the image configuration is treated as an
 // opaque blob and it is thus returned as an already serialised byte
 // array and its SHA256-hash.
-func configLayer(arch string, hashes []string) ConfigLayer {
+func configLayer(arch string, hashes []string, cmd string) ConfigLayer {
 	c := imageConfig{}
 	c.Architecture = arch
 	c.OS = os
 	c.RootFS.FSType = fsType
 	c.RootFS.DiffIDs = hashes
+	if cmd != "" {
+		c.Config.Cmd = []string{cmd}
+	}
+	c.Config.Env = []string{"SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"}
 
 	j, _ := json.Marshal(c)
 
@@ -103,7 +108,7 @@ func configLayer(arch string, hashes []string) ConfigLayer {
 // layer.
 //
 // Callers do not need to set the media type for the layer entries.
-func Manifest(arch string, layers []Entry) (json.RawMessage, ConfigLayer) {
+func Manifest(arch string, layers []Entry, cmd string) (json.RawMessage, ConfigLayer) {
 	// Sort layers by their merge rating, from highest to lowest.
 	// This makes it likely for a contiguous chain of shared image
 	// layers to appear at the beginning of a layer.
@@ -122,7 +127,7 @@ func Manifest(arch string, layers []Entry) (json.RawMessage, ConfigLayer) {
 		layers[i] = l
 	}
 
-	c := configLayer(arch, hashes)
+	c := configLayer(arch, hashes, cmd)
 
 	m := manifest{
 		SchemaVersion: schemaVersion,

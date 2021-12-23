@@ -493,7 +493,15 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 		return nil, err
 	}
 
-	m, c := manifest.Manifest(image.Arch.imageArch, layers)
+	// If the requested packages include a shell,
+	// set cmd accordingly.
+	cmd := ""
+	for _, pkg := range image.Packages {
+		if pkg == "bashInteractive" {
+			cmd = "bash"
+		}
+	}
+	m, c := manifest.Manifest(image.Arch.imageArch, layers, cmd)
 
 	lw := func(w io.Writer) error {
 		r := bytes.NewReader(c.Config)
