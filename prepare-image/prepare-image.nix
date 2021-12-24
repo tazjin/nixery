@@ -133,14 +133,16 @@ let
     name = "bulk-layers";
     paths = allContents.contents;
 
-    # Ensure that there is always a /usr/bin/env for shell scripts
-    # that require it.
+    # Provide a few essentials that many programs expect:
+    # - a /tmp directory,
+    # - a /usr/bin/env for shell scripts that require it.
     #
-    # Note that images which do not actually contain `coreutils` will
-    # still have this symlink, but it will be dangling.
+    # Note that in images that do not actually contain `coreutils`,
+    # /usr/bin/env will be a dangling symlink.
     #
-    # TODO(tazjin): Don't link this if coreutils is not included.
+    # TODO(tazjin): Don't link /usr/bin/env if coreutils is not included.
     postBuild = ''
+      mkdir -p $out/tmp
       mkdir -p $out/usr/bin
       ln -s ${coreutils}/bin/env $out/usr/bin/env
     '';
