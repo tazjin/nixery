@@ -4,7 +4,7 @@
 
 -----------------
 
-[![Build Status](https://github.com/google/nixery/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/google/nixery/actions/workflows/build-and-test.yaml)
+[![Build Status](https://github.com/tazjin/nixery/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/tazjin/nixery/actions/workflows/build-and-test.yaml)
 
 **Nixery** is a Docker-compatible container registry that is capable of
 transparently building and serving container images using [Nix][].
@@ -130,7 +130,7 @@ outlined in [a public gist][gist].
 It should be trivial to deploy Nixery inside of a Kubernetes cluster with
 correct caching behaviour, addressing and so on.
 
-See [issue #4](https://github.com/google/nixery/issues/4).
+See [issue #4](https://github.com/tazjin/nixery/issues/4).
 
 ### Nix-native builder
 

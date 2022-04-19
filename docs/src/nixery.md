@@ -77,7 +77,7 @@ availability.
 Nixery was written by [tazjin][], but many people have contributed to Nix over
 time, maybe you could become one of them?
 
-[Nixery]: https://github.com/google/nixery
+[Nixery]: https://github.com/tazjin/nixery
 [Nix]: https://nixos.org/nix
 [layering strategy]: https://storage.googleapis.com/nixdoc/nixery-layers.html
 [layers]: https://grahamc.com/blog/nix-and-layered-docker-images

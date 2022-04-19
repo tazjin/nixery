@@ -181,10 +181,10 @@ If the directory doesn't exist, Nixery will run fine but serve 404.
     extensively.
 
 [GKE]: https://cloud.google.com/kubernetes-engine/
-[nixery#4]: https://github.com/google/nixery/issues/4
+[nixery#4]: https://github.com/tazjin/nixery/issues/4
 [Nix]: https://nixos.org/nix
 [gcs]: https://cloud.google.com/storage/
-[repo]: https://github.com/google/nixery
+[repo]: https://github.com/tazjin/nixery
 [signed-urls]: under-the-hood.html#5-image-layers-are-requested
 [ADC]: https://cloud.google.com/docs/authentication/production#finding_credentials_automatically
 [nixinstall]: https://nixos.org/manual/nix/stable/installation/installing-binary.html
