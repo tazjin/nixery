@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{ pkgs ? import ./nixpkgs-pin.nix
+# This function header aims to provide compatibility between builds of
+# Nixery taking place inside/outside of the TVL depot.
+#
+# In the future, Nixery will transition to using //nix/buildGo for its
+# build system and this will need some major adaptations to support
+# that.
+{ depot ? { nix.readTree.drvTargets = x: x; }
+, pkgs ? import <nixpkgs> {}
 , preLaunch ? ""
 , extraPackages ? []
 , maxLayers ? 20
@@ -27,7 +34,8 @@ let
   # Current Nixery commit - this is used as the Nixery version in
   # builds to distinguish errors between deployed versions, see
   # server/logs.go for details.
-  nixery-commit-hash = args.commitHash or pkgs.lib.commitIdFromGitRepo ./.git;
+  gitDir = if builtins.pathExists ./.git then ./.git else ../../.git;
+  nixery-commit-hash = args.commitHash or pkgs.lib.commitIdFromGitRepo gitDir;
 
   # Go implementation of the Nixery server which implements the
   # container registry interface.
@@ -46,7 +54,7 @@ let
       "-ldflags=-s -w -X main.version=${nixery-commit-hash}"
     ];
   };
-in rec {
+in depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
   nixery-prepare-image = import ./prepare-image { inherit pkgs; };
 
