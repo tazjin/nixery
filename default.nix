@@ -16,7 +16,8 @@
 , preLaunch ? ""
 , extraPackages ? []
 , maxLayers ? 20
-, commitHash ? null }@args:
+, commitHash ? null
+, ... }@args:
 
 with pkgs;
 
