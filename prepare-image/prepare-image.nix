@@ -1,16 +1,5 @@
-# Copyright 2019 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2022 The TVL Contributors
+# SPDX-License-Identifier: Apache-2.0
 
 # This file contains a derivation that outputs structured information
 # about the runtime dependencies of an image with a given set of
@@ -23,13 +12,13 @@
 
 {
   # Description of the package set to be used (will be loaded by load-pkgs.nix)
-  srcType ? "nixpkgs",
-  srcArgs ? "nixos-20.09",
-  system ? "x86_64-linux",
-  importArgs ? { },
-  # Path to load-pkgs.nix
-  loadPkgs ? ./load-pkgs.nix,
-  # Packages to install by name (which must refer to top-level attributes of
+  srcType ? "nixpkgs"
+, srcArgs ? "nixos-20.09"
+, system ? "x86_64-linux"
+, importArgs ? { }
+, # Path to load-pkgs.nix
+  loadPkgs ? ./load-pkgs.nix
+, # Packages to install by name (which must refer to top-level attributes of
   # nixpkgs). This is passed in as a JSON-array in string form.
   packages ? "[]"
 }:
@@ -77,24 +66,28 @@ let
   # `deepFetch haskellpackages.stylish-haskell` retrieves
   # `haskellPackages.stylish-haskell`.
   deepFetch = with lib; s: n:
-    let path = splitString "." n;
-        err = { error = "not_found"; pkg = n; };
-        # The most efficient way I've found to do a lookup against
-        # case-differing versions of an attribute is to first construct a
-        # mapping of all lowercased attribute names to their differently cased
-        # equivalents.
-        #
-        # This map is then used for a second lookup if the top-level
-        # (case-sensitive) one does not yield a result.
-        hasUpper = str: (match ".*[A-Z].*" str) != null;
-        allUpperKeys = filter hasUpper (attrNames s);
-        lowercased = listToAttrs (map (k: {
+    let
+      path = splitString "." n;
+      err = { error = "not_found"; pkg = n; };
+      # The most efficient way I've found to do a lookup against
+      # case-differing versions of an attribute is to first construct a
+      # mapping of all lowercased attribute names to their differently cased
+      # equivalents.
+      #
+      # This map is then used for a second lookup if the top-level
+      # (case-sensitive) one does not yield a result.
+      hasUpper = str: (match ".*[A-Z].*" str) != null;
+      allUpperKeys = filter hasUpper (attrNames s);
+      lowercased = listToAttrs (map
+        (k: {
           name = toLower k;
           value = k;
-          }) allUpperKeys);
-        caseAmendedPath = map (v: if hasAttr v lowercased then lowercased."${v}" else v) path;
-        fetchLower = attrByPath caseAmendedPath err s;
-    in attrByPath path fetchLower s;
+        })
+        allUpperKeys);
+      caseAmendedPath = map (v: if hasAttr v lowercased then lowercased."${v}" else v) path;
+      fetchLower = attrByPath caseAmendedPath err s;
+    in
+    attrByPath path fetchLower s;
 
   # allContents contains all packages successfully retrieved by name
   # from the package set, as well as any errors encountered while
@@ -105,27 +98,30 @@ let
     # Folds over the results of 'deepFetch' on all requested packages to
     # separate them into errors and content. This allows the program to
     # terminate early and return only the errors if any are encountered.
-    let splitter = attrs: res:
-          if hasAttr "error" res
-          then attrs // { errors = attrs.errors ++ [ res ]; }
-          else attrs // { contents = attrs.contents ++ [ res ]; };
-        init = { contents = []; errors = []; };
-        fetched = (map (deepFetch pkgs) (fromJSON packages));
-    in foldl' splitter init fetched;
+    let
+      splitter = attrs: res:
+        if hasAttr "error" res
+        then attrs // { errors = attrs.errors ++ [ res ]; }
+        else attrs // { contents = attrs.contents ++ [ res ]; };
+      init = { contents = [ ]; errors = [ ]; };
+      fetched = (map (deepFetch pkgs) (fromJSON packages));
+    in
+    foldl' splitter init fetched;
 
   # Contains the export references graph of all retrieved packages,
   # which has information about all runtime dependencies of the image.
   #
   # This is used by Nixery to group closures into image layers.
-  runtimeGraph = runCommand "runtime-graph.json" {
-    __structuredAttrs = true;
-    exportReferencesGraph.graph = allContents.contents;
-    PATH = "${coreutils}/bin";
-    builder = toFile "builder" ''
-      . .attrs.sh
-      cp .attrs.json ''${outputs[out]}
-    '';
-  } "";
+  runtimeGraph = runCommand "runtime-graph.json"
+    {
+      __structuredAttrs = true;
+      exportReferencesGraph.graph = allContents.contents;
+      PATH = "${coreutils}/bin";
+      builder = toFile "builder" ''
+        . .attrs.sh
+        cp .attrs.json ''${outputs[out]}
+      '';
+    } "";
 
   # Create a symlink forest into all top-level store paths of the
   # image contents.
@@ -151,7 +147,7 @@ let
   # Image layer that contains the symlink forest created above. This
   # must be included in the image to ensure that the filesystem has a
   # useful layout at runtime.
-  symlinkLayer = runCommand "symlink-layer.tar" {} ''
+  symlinkLayer = runCommand "symlink-layer.tar" { } ''
     cp -r ${contentsEnv}/ ./layer
     tar --transform='s|^\./||' -C layer --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 -cf $out .
   '';
@@ -159,9 +155,10 @@ let
   # Metadata about the symlink layer which is required for serving it.
   # Two different hashes are computed for different usages (inclusion
   # in manifest vs. content-checking in the layer cache).
-  symlinkLayerMeta = fromJSON (readFile (runCommand "symlink-layer-meta.json" {
-    buildInputs = [ coreutils jq openssl ];
-  }''
+  symlinkLayerMeta = fromJSON (readFile (runCommand "symlink-layer-meta.json"
+    {
+      buildInputs = [ coreutils jq openssl ];
+    } ''
     tarHash=$(sha256sum ${symlinkLayer} | cut -d ' ' -f1)
     layerSize=$(stat --printf '%s' ${symlinkLayer})
 
@@ -181,7 +178,8 @@ let
     error = "not_found";
     pkgs = map (err: err.pkg) allContents.errors;
   };
-in writeText "build-output.json" (if (length allContents.errors) == 0
-  then toJSON buildOutput
-  else toJSON errorOutput
+in
+writeText "build-output.json" (if (length allContents.errors) == 0
+then toJSON buildOutput
+else toJSON errorOutput
 )

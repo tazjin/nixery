@@ -65,13 +65,17 @@ use it with your own packages. There are three options available:
 
 ### 2.1. With a container image
 
-The easiest way to run Nixery is to build a container image.
-This section assumes that the container runtime used is Docker,
-please modify instructions accordingly if
-you are using something else.
+The easiest way to run Nixery is to build a container image. This
+section assumes that the container runtime used is Docker, please
+modify instructions accordingly if you are using something else.
 
-With a working Nix installation, building Nixery is done by invoking `nix-build
--A nixery-image` from a checkout of the [Nixery repository][repo].
+With a working Nix installation, you can clone and build the Nixery
+image like this:
+
+```
+git clone https://code.tvl.fyi/depot.git:/tools/nixery.git
+nix-build -A nixery-image
+```
 
 This will create a `result`-symlink which points to a tarball containing the
 image. In Docker, this tarball can be loaded by using `docker load -i result`.
@@ -184,7 +188,6 @@ If the directory doesn't exist, Nixery will run fine but serve 404.
 [nixery#4]: https://github.com/tazjin/nixery/issues/4
 [Nix]: https://nixos.org/nix
 [gcs]: https://cloud.google.com/storage/
-[repo]: https://github.com/tazjin/nixery
 [signed-urls]: under-the-hood.html#5-image-layers-are-requested
 [ADC]: https://cloud.google.com/docs/authentication/production#finding_credentials_automatically
 [nixinstall]: https://nixos.org/manual/nix/stable/installation/installing-binary.html

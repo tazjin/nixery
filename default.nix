@@ -1,16 +1,5 @@
-# Copyright 2019-2021 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2022 The TVL Contributors
+# SPDX-License-Identifier: Apache-2.0
 
 # This function header aims to provide compatibility between builds of
 # Nixery taking place inside/outside of the TVL depot.
@@ -19,12 +8,13 @@
 # build system and this will need some major adaptations to support
 # that.
 { depot ? { nix.readTree.drvTargets = x: x; }
-, pkgs ? import <nixpkgs> {}
+, pkgs ? import <nixpkgs> { }
 , preLaunch ? ""
-, extraPackages ? []
+, extraPackages ? [ ]
 , maxLayers ? 20
 , commitHash ? null
-, ... }@args:
+, ...
+}@args:
 
 with pkgs;
 
@@ -54,7 +44,8 @@ let
       "-ldflags=-s -w -X main.version=${nixery-commit-hash}"
     ];
   };
-in depot.nix.readTree.drvTargets rec {
+in
+depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
   nixery-prepare-image = import ./prepare-image { inherit pkgs; };
 
@@ -79,55 +70,57 @@ in depot.nix.readTree.drvTargets rec {
   # Container image containing Nixery and Nix itself. This image can
   # be run on Kubernetes, published on AppEngine or whatever else is
   # desired.
-  nixery-image = let
-    # Wrapper script for the wrapper script (meta!) which configures
-    # the container environment appropriately.
-    #
-    # Most importantly, sandboxing is disabled to avoid privilege
-    # issues in containers.
-    nixery-launch-script = writeShellScriptBin "nixery" ''
-      set -e
-      export PATH=${coreutils}/bin:$PATH
-      export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
-      mkdir -p /tmp
-
-      # Create the build user/group required by Nix
-      echo 'nixbld:x:30000:nixbld' >> /etc/group
-      echo 'nixbld:x:30000:30000:nixbld:/tmp:/bin/bash' >> /etc/passwd
-      echo 'root:x:0:0:root:/root:/bin/bash' >> /etc/passwd
-      echo 'root:x:0:' >> /etc/group
-
-      # Disable sandboxing to avoid running into privilege issues
-      mkdir -p /etc/nix
-      echo 'sandbox = false' >> /etc/nix/nix.conf
-
-      # In some cases users building their own image might want to
-      # customise something on the inside (e.g. set up an environment
-      # for keys or whatever).
+  nixery-image =
+    let
+      # Wrapper script for the wrapper script (meta!) which configures
+      # the container environment appropriately.
       #
-      # This can be achieved by setting a 'preLaunch' script.
-      ${preLaunch}
+      # Most importantly, sandboxing is disabled to avoid privilege
+      # issues in containers.
+      nixery-launch-script = writeShellScriptBin "nixery" ''
+        set -e
+        export PATH=${coreutils}/bin:$PATH
+        export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+        mkdir -p /tmp
 
-      exec ${nixery-bin}/bin/nixery
-    '';
-  in dockerTools.buildLayeredImage {
-    name = "nixery";
-    config.Cmd = [ "${nixery-launch-script}/bin/nixery" ];
+        # Create the build user/group required by Nix
+        echo 'nixbld:x:30000:nixbld' >> /etc/group
+        echo 'nixbld:x:30000:30000:nixbld:/tmp:/bin/bash' >> /etc/passwd
+        echo 'root:x:0:0:root:/root:/bin/bash' >> /etc/passwd
+        echo 'root:x:0:' >> /etc/group
 
-    inherit maxLayers;
-    contents = [
-      bashInteractive
-      cacert
-      coreutils
-      git
-      gnutar
-      gzip
-      iana-etc
-      nix
-      nixery-prepare-image
-      nixery-launch-script
-      openssh
-      zlib
-    ] ++ extraPackages;
-  };
+        # Disable sandboxing to avoid running into privilege issues
+        mkdir -p /etc/nix
+        echo 'sandbox = false' >> /etc/nix/nix.conf
+
+        # In some cases users building their own image might want to
+        # customise something on the inside (e.g. set up an environment
+        # for keys or whatever).
+        #
+        # This can be achieved by setting a 'preLaunch' script.
+        ${preLaunch}
+
+        exec ${nixery-bin}/bin/nixery
+      '';
+    in
+    dockerTools.buildLayeredImage {
+      name = "nixery";
+      config.Cmd = [ "${nixery-launch-script}/bin/nixery" ];
+
+      inherit maxLayers;
+      contents = [
+        bashInteractive
+        cacert
+        coreutils
+        git
+        gnutar
+        gzip
+        iana-etc
+        nix
+        nixery-prepare-image
+        nixery-launch-script
+        openssh
+        zlib
+      ] ++ extraPackages;
+    };
 }

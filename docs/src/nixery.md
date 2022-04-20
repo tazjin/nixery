@@ -68,10 +68,6 @@ production project we recommend setting up a private instance. The public Nixery
 at `nixery.dev` is run on a best-effort basis and we make no guarantees about
 availability.
 
-### Is this an official Google project?
-
-**No.** Nixery is not officially supported by Google.
-
 ### Who made this?
 
 Nixery was written by [tazjin][], but many people have contributed to Nix over
@@ -81,4 +77,4 @@ time, maybe you could become one of them?
 [Nix]: https://nixos.org/nix
 [layering strategy]: https://storage.googleapis.com/nixdoc/nixery-layers.html
 [layers]: https://grahamc.com/blog/nix-and-layered-docker-images
-[tazjin]: https://github.com/tazjin
+[tazjin]: https://tazj.in

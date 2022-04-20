@@ -1,2 +1,0 @@
-# Ignore stylesheet modifications for the book in Linguist stats
-*.css linguist-detectable=false
