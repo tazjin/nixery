@@ -21,11 +21,9 @@ with pkgs;
 let
   inherit (pkgs) buildGoModule;
 
-  # Current Nixery commit - this is used as the Nixery version in
-  # builds to distinguish errors between deployed versions, see
-  # server/logs.go for details.
-  gitDir = if builtins.pathExists ./.git then ./.git else ../../.git;
-  nixery-commit-hash = args.commitHash or pkgs.lib.commitIdFromGitRepo gitDir;
+  # Avoid extracting this from git until we have a way to plumb
+  # through revision numbers.
+  nixery-commit-hash = "depot";
 
   # Go implementation of the Nixery server which implements the
   # container registry interface.
