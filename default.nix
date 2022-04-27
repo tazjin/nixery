@@ -62,6 +62,7 @@ depot.nix.readTree.drvTargets rec {
   nixery-bin = writeShellScriptBin "nixery" ''
     export WEB_DIR="${nixery-book}"
     export PATH="${nixery-prepare-image}/bin:$PATH"
+    export PATH="${nixery-popcount}/bin:$PATH"
     exec ${nixery-server}/bin/nixery
   '';
 

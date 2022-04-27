@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -63,6 +65,38 @@ func downloadPopularity(url string) (builder.Popularity, error) {
 	}
 
 	j, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var pop builder.Popularity
+	err = json.Unmarshal(j, &pop)
+	if err != nil {
+		return nil, err
+	}
+
+	return pop, nil
+}
+
+func computePopularity() (builder.Popularity, error) {
+	channel := os.Getenv("NIXERY_CHANNEL")
+	if channel == "" {
+		return nil, nil
+	}
+
+	file, err := ioutil.TempFile(os.TempDir(), "popularity.*.json")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(file.Name())
+
+	cmd := exec.Command("nixery-popcount", channel, file.Name())
+	_, err = cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	j, err := ioutil.ReadFile(file.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +286,12 @@ func main() {
 		if err != nil {
 			log.WithError(err).WithField("popURL", cfg.PopUrl).
 				Fatal("failed to fetch popularity information")
+		}
+	} else if cfg.GeneratePopularity {
+		pop, err = computePopularity()
+		if err != nil {
+			log.WithError(err).
+				Fatal("failed to compute popularity information")
 		}
 	}
 
