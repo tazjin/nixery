@@ -25,23 +25,6 @@ let
   # through revision numbers.
   nixery-commit-hash = "depot";
 
-  # Go implementation of the Nixery server which implements the
-  # container registry interface.
-  #
-  # Users should use the nixery-bin derivation below instead as it
-  # provides the paths of files needed at runtime.
-  nixery-server = buildGoModule rec {
-    name = "nixery-server";
-    src = ./.;
-    doCheck = true;
-
-    # Needs to be updated after every modification of go.mod/go.sum
-    vendorSha256 = "1xnmyz2a5s5sck0fzhcz51nds4s80p0jw82dhkf4v2c4yzga83yk";
-
-    buildFlagsArray = [
-      "-ldflags=-s -w -X main.version=${nixery-commit-hash}"
-    ];
-  };
 in
 depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
@@ -52,18 +35,32 @@ depot.nix.readTree.drvTargets rec {
   # nixery.dev.
   nixery-book = callPackage ./docs { };
 
-  # Wrapper script running the Nixery server with the above two data
-  # dependencies configured.
-  #
-  # In most cases, this will be the derivation a user wants if they
-  # are installing Nixery directly.
-  nixery-bin = writeShellScriptBin "nixery" ''
-    export WEB_DIR="${nixery-book}"
-    export PATH="${nixery-prepare-image}/bin:$PATH"
-    exec ${nixery-server}/bin/nixery
-  '';
-
   nixery-popcount = callPackage ./popcount { };
+
+  # Build Nixery's Go code, resulting in the binaries used for various
+  # bits of functionality.
+  #
+  # The server binary is wrapped to ensure that required environment
+  # variables are set at runtime.
+  nixery = buildGoModule rec {
+    name = "nixery";
+    src = ./.;
+    doCheck = true;
+
+    # Needs to be updated after every modification of go.mod/go.sum
+    vendorSha256 = "1xnmyz2a5s5sck0fzhcz51nds4s80p0jw82dhkf4v2c4yzga83yk";
+
+    buildFlagsArray = [
+      "-ldflags=-s -w -X main.version=${nixery-commit-hash}"
+    ];
+
+    nativeBuildInputs = [ makeWrapper ];
+    postInstall = ''
+      wrapProgram $out/bin/server \
+        --set WEB_DIR "${nixery-book}" \
+        --prefix PATH : ${nixery-prepare-image}/bin
+    '';
+  };
 
   # Container image containing Nixery and Nix itself. This image can
   # be run on Kubernetes, published on AppEngine or whatever else is
@@ -98,7 +95,7 @@ depot.nix.readTree.drvTargets rec {
         # This can be achieved by setting a 'preLaunch' script.
         ${preLaunch}
 
-        exec ${nixery-bin}/bin/nixery
+        exec ${nixery}/bin/server
       '';
     in
     dockerTools.buildLayeredImage {
