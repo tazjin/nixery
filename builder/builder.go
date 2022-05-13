@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/google/nixery/config"
+	"github.com/google/nixery/layers"
 	"github.com/google/nixery/manifest"
 	"github.com/google/nixery/storage"
 	log "github.com/sirupsen/logrus"
@@ -39,7 +40,7 @@ type State struct {
 	Storage storage.Backend
 	Cache   *LocalCache
 	Cfg     config.Config
-	Pop     Popularity
+	Pop     layers.Popularity
 }
 
 // Architecture represents the possible CPU architectures for which
@@ -117,7 +118,7 @@ type ImageResult struct {
 	Pkgs  []string `json:"pkgs"`
 
 	// These fields are populated in case of success
-	Graph        runtimeGraph `json:"runtimeGraph"`
+	Graph        layers.RuntimeGraph `json:"runtimeGraph"`
 	SymlinkLayer struct {
 		Size    int    `json:"size"`
 		TarHash string `json:"tarHash"`
@@ -281,7 +282,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 // added only after successful uploads, which guarantees that entries
 // retrieved from the cache are present in the bucket.
 func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageResult) ([]manifest.Entry, error) {
-	grouped := groupLayers(&result.Graph, &s.Pop, LayerBudget)
+	grouped := layers.GroupLayers(&result.Graph, &s.Pop, LayerBudget)
 
 	var entries []manifest.Entry
 
@@ -318,7 +319,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 
 			var pkgs []string
 			for _, p := range l.Contents {
-				pkgs = append(pkgs, packageFromPath(p))
+				pkgs = append(pkgs, layers.PackageFromPath(p))
 			}
 
 			log.WithFields(log.Fields{

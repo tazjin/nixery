@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/nixery/builder"
 	"github.com/google/nixery/config"
+	"github.com/google/nixery/layers"
 	"github.com/google/nixery/logs"
 	mf "github.com/google/nixery/manifest"
 	"github.com/google/nixery/storage"
@@ -52,7 +53,7 @@ var (
 
 // Downloads the popularity information for the package set from the
 // URL specified in Nixery's configuration.
-func downloadPopularity(url string) (builder.Popularity, error) {
+func downloadPopularity(url string) (layers.Popularity, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func downloadPopularity(url string) (builder.Popularity, error) {
 		return nil, err
 	}
 
-	var pop builder.Popularity
+	var pop layers.Popularity
 	err = json.Unmarshal(j, &pop)
 	if err != nil {
 		return nil, err
@@ -246,7 +247,7 @@ func main() {
 		log.WithError(err).Fatal("failed to instantiate build cache")
 	}
 
-	var pop builder.Popularity
+	var pop layers.Popularity
 	if cfg.PopUrl != "" {
 		pop, err = downloadPopularity(cfg.PopUrl)
 		if err != nil {

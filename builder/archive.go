@@ -16,6 +16,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/google/nixery/layers"
 )
 
 // Create a new compressed tarball from each of the paths in the list
@@ -23,7 +25,7 @@ import (
 //
 // The uncompressed tarball is hashed because image manifests must
 // contain both the hashes of compressed and uncompressed layers.
-func packStorePaths(l *layer, w io.Writer) (string, error) {
+func packStorePaths(l *layers.Layer, w io.Writer) (string, error) {
 	shasum := sha256.New()
 	gz := gzip.NewWriter(w)
 	multi := io.MultiWriter(shasum, gz)
