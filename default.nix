@@ -60,6 +60,14 @@ depot.nix.readTree.drvTargets rec {
         --set WEB_DIR "${nixery-book}" \
         --prefix PATH : ${nixery-prepare-image}/bin
     '';
+
+    # Nixery is mirrored to Github at tazjin/nixery; this is
+    # automatically updated from CI for canon builds.
+    passthru.meta.ci.extraSteps.github = depot.tools.releases.filteredGitPush {
+      filter = ":/tools/nixery";
+      remote = "git@github.com:tazjin/nixery.git";
+      ref = "refs/heads/master";
+    };
   };
 
   # Container image containing Nixery and Nix itself. This image can
