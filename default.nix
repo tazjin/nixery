@@ -48,7 +48,7 @@ depot.nix.readTree.drvTargets rec {
     doCheck = true;
 
     # Needs to be updated after every modification of go.mod/go.sum
-    vendorSha256 = "1xnmyz2a5s5sck0fzhcz51nds4s80p0jw82dhkf4v2c4yzga83yk";
+    vendorSha256 = "115dfdhpklgmp6dsy59bp0i9inqim208lf1sqbnl9jy91bnnbl32";
 
     buildFlagsArray = [
       "-ldflags=-s -w -X main.version=${nixery-commit-hash}"
