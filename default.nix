@@ -25,6 +25,9 @@ let
   # through revision numbers.
   nixery-commit-hash = "depot";
 
+  # If Nixery is built outside of depot, it needs to dynamically fetch
+  # the current nix-1p.
+  nix-1p-git = builtins.fetchGit "https://code.tvl.fyi/depot.git:/nix/nix-1p.git";
 in
 depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
@@ -36,6 +39,8 @@ depot.nix.readTree.drvTargets rec {
   #
   # If the nixpkgs commit is known, append it to the main docs page.
   nixery-book = callPackage ./docs {
+    nix-1p = depot.nix.nix-1p or nix-1p-git;
+
     postamble = lib.optionalString (pkgs ? nixpkgsCommits.unstable) ''
       ### Which revision of `nixpkgs` is used for the builds?
 

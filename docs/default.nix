@@ -7,16 +7,8 @@
 # Some of the documentation is pulled in and included from other
 # sources.
 
-{ fetchFromGitHub, mdbook, runCommand, rustPlatform, postamble ? "" }:
+{ fetchFromGitHub, mdbook, runCommand, rustPlatform, nix-1p, postamble ? "" }:
 
-let
-  nix-1p = fetchFromGitHub {
-    owner = "tazjin";
-    repo = "nix-1p";
-    rev = "9f0baf5e270128d9101ba4446cf6844889e399a2";
-    sha256 = "1pf9i90gn98vz67h296w5lnwhssk62dc6pij983dff42dbci7lhj";
-  };
-in
 runCommand "nixery-book"
 {
   POSTAMBLE = postamble;
