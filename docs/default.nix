@@ -7,7 +7,7 @@
 # Some of the documentation is pulled in and included from other
 # sources.
 
-{ fetchFromGitHub, mdbook, runCommand, rustPlatform }:
+{ fetchFromGitHub, mdbook, runCommand, rustPlatform, postamble ? "" }:
 
 let
   nix-1p = fetchFromGitHub {
@@ -17,10 +17,14 @@ let
     sha256 = "1pf9i90gn98vz67h296w5lnwhssk62dc6pij983dff42dbci7lhj";
   };
 in
-runCommand "nixery-book" { } ''
+runCommand "nixery-book"
+{
+  POSTAMBLE = postamble;
+} ''
   mkdir -p $out
   cp -r ${./.}/* .
   chmod -R a+w src
   cp ${nix-1p}/README.md src/nix-1p.md
+  echo "''${POSTAMBLE}" >> src/nixery.md
   ${mdbook}/bin/mdbook build -d $out
 ''

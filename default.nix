@@ -19,7 +19,7 @@
 with pkgs;
 
 let
-  inherit (pkgs) buildGoModule;
+  inherit (pkgs) buildGoModule lib;
 
   # Avoid extracting this from git until we have a way to plumb
   # through revision numbers.
@@ -33,7 +33,23 @@ depot.nix.readTree.drvTargets rec {
   # Use mdBook to build a static asset page which Nixery can then
   # serve. This is primarily used for the public instance at
   # nixery.dev.
-  nixery-book = callPackage ./docs { };
+  #
+  # If the nixpkgs commit is known, append it to the main docs page.
+  nixery-book = callPackage ./docs {
+    postamble = lib.optionalString (pkgs ? nixpkgsCommits.unstable) ''
+      ### Which revision of `nixpkgs` is used for the builds?
+
+      The current revision of `nixpkgs` is
+      [`${pkgs.nixpkgsCommits.unstable}`][commit] from the
+      `nixos-unstable` channel.
+
+      This instance of Nixery uses the `nixpkgs` channel pinned by TVL
+      in [`//third_party/sources/sources.json`][sources].
+
+      [commit]: https://github.com/NixOS/nixpkgs/commit/${pkgs.nixpkgsCommits.unstable}
+      [sources]: https://code.tvl.fyi/tree/third_party/sources/sources.json
+    '';
+  };
 
   nixery-popcount = callPackage ./popcount { };
 

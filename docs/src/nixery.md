@@ -34,7 +34,7 @@ meta-package that automatically expands to several other packages.
 
 Meta-packages **must** be the first path component if they are used. Currently
 there are only two meta-packages:
-- `shell`, which provides a `bash`-shell with interactive configuration and 
+- `shell`, which provides a `bash`-shell with interactive configuration and
   standard tools like `coreutils`.
 - `arm64`, which provides ARM64 binaries.
 
@@ -52,14 +52,6 @@ is quite low, thus by definition your question is already frequently asked.
 Over [on Github][Nixery]. It is licensed under the Apache 2.0 license. Consult
 the documentation entries in the sidebar for information on how to set up your
 own instance of Nixery.
-
-### Which revision of `nixpkgs` is used for the builds?
-
-The instance at `nixery.dev` tracks a recent NixOS channel, currently NixOS
-20.09. The channel is updated several times a day.
-
-Private registries might be configured to track a different channel (such as
-`nixos-unstable`) or even track a git repository with custom packages.
 
 ### Should I depend on `nixery.dev` in production?
 
