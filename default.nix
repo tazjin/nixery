@@ -27,7 +27,10 @@ let
 
   # If Nixery is built outside of depot, it needs to dynamically fetch
   # the current nix-1p.
-  nix-1p-git = builtins.fetchGit "https://code.tvl.fyi/depot.git:/nix/nix-1p.git";
+  nix-1p-git = builtins.fetchGit {
+    url = "https://code.tvl.fyi/depot.git:/nix/nix-1p.git";
+    ref = "canon";
+  };
 in
 depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
