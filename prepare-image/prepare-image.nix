@@ -155,7 +155,7 @@ let
   # Metadata about the symlink layer which is required for serving it.
   # Two different hashes are computed for different usages (inclusion
   # in manifest vs. content-checking in the layer cache).
-  symlinkLayerMeta = fromJSON (readFile (runCommand "symlink-layer-meta.json"
+  symlinkLayerMeta = fromJSON (builtins.unsafeDiscardStringContext (readFile (runCommand "symlink-layer-meta.json"
     {
       buildInputs = [ coreutils jq openssl ];
     } ''
@@ -164,11 +164,11 @@ let
 
     jq -n -c --arg tarHash $tarHash --arg size $layerSize --arg path ${symlinkLayer} \
       '{ size: ($size | tonumber), tarHash: $tarHash, path: $path }' >> $out
-  ''));
+  '')));
 
   # Final output structure returned to Nixery if the build succeeded
   buildOutput = {
-    runtimeGraph = fromJSON (readFile runtimeGraph);
+    runtimeGraph = fromJSON (builtins.unsafeDiscardStringContext (readFile runtimeGraph));
     symlinkLayer = symlinkLayerMeta;
   };
 
