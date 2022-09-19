@@ -30,6 +30,7 @@ import (
 	"github.com/google/nixery/logs"
 	mf "github.com/google/nixery/manifest"
 	"github.com/google/nixery/storage"
+	"github.com/im7mortal/kmutex"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -257,10 +258,11 @@ func main() {
 	}
 
 	state := builder.State{
-		Cache:   &cache,
-		Cfg:     cfg,
-		Pop:     pop,
-		Storage: s,
+		Cache:       &cache,
+		Cfg:         cfg,
+		Pop:         pop,
+		Storage:     s,
+		UploadMutex: kmutex.New(),
 	}
 
 	log.WithFields(log.Fields{
