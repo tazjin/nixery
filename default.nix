@@ -24,40 +24,15 @@ let
   # Avoid extracting this from git until we have a way to plumb
   # through revision numbers.
   nixery-commit-hash = "depot";
-
-  # If Nixery is built outside of depot, it needs to dynamically fetch
-  # the current nix-1p.
-  nix-1p-git = builtins.fetchGit {
-    url = "https://code.tvl.fyi/depot.git:/nix/nix-1p.git";
-    ref = "canon";
-  };
 in
 depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
   nixery-prepare-image = import ./prepare-image { inherit pkgs; };
 
-  # Use mdBook to build a static asset page which Nixery can then
-  # serve. This is primarily used for the public instance at
-  # nixery.dev.
-  #
-  # If the nixpkgs commit is known, append it to the main docs page.
-  nixery-book = callPackage ./docs {
-    nix-1p = depot.nix.nix-1p or nix-1p-git;
-
-    postamble = lib.optionalString (pkgs ? nixpkgsCommits.unstable) ''
-      ### Which revision of `nixpkgs` is used for the builds?
-
-      The current revision of `nixpkgs` is
-      [`${pkgs.nixpkgsCommits.unstable}`][commit] from the
-      `nixos-unstable` channel.
-
-      This instance of Nixery uses the `nixpkgs` channel pinned by TVL
-      in [`//third_party/sources/sources.json`][sources].
-
-      [commit]: https://github.com/NixOS/nixpkgs/commit/${pkgs.nixpkgsCommits.unstable}
-      [sources]: https://code.tvl.fyi/tree/third_party/sources/sources.json
-    '';
-  };
+  # Include the Nixery website into the Nix store, unless its being
+  # overridden to something else. Nixery will serve this as its front
+  # page when visited from a browser.
+  nixery-web = ./web;
 
   nixery-popcount = callPackage ./popcount { };
 
@@ -84,7 +59,7 @@ depot.nix.readTree.drvTargets rec {
     nativeBuildInputs = [ makeWrapper ];
     postInstall = ''
       wrapProgram $out/bin/server \
-        --set WEB_DIR "${nixery-book}" \
+        --set WEB_DIR "${nixery-web}" \
         --prefix PATH : ${nixery-prepare-image}/bin
     '';
 

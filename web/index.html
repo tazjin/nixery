@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="The Virus Lounge">
+  <link rel="stylesheet" type="text/css" href="https://static.tvl.fyi/latest/tvl.css" media="all">
+  <link rel="icon" type="image/webp" href="/favicon.webp">
+  <title>Nixery</title>
+</head>
+<body class="light">
+  <img src="./nixery-logo.png" alt="Nixery">
+  <hr>
+
+  <p>
+    Welcome to this instance of Nixery, an ad-hoc container image registry that provides
+    packages from the <a href="https://nixos.org/nix">Nix</a> package manager.
+  </p>
+
+  <p>
+    You can pull container images from this registry
+    at <code><span class="registry-hostname">nixery.dev</span></code> by appending any
+    packages that you need in the URL, separated by slashes.
+  </p>
+
+  <noscript>
+    <p class="cheddar-callout cheddar-tip">
+      <strong>NOTE:</strong> When pulling from a private Nixery instance,
+      replace <code>nixery.dev</code> in the above examples with your registry address.
+    </p>
+  </noscript>
+
+  <h2><a href="#demo" aria-hidden="true" class="anchor" id="demo"></a>Demo</h2>
+
+  <noscript>
+    <p>
+      The interactive demo needs Javascript to run, but you can just read the Usage
+      instructions below instead
+    </p>
+  </noscript>
+
+  <script src="https://asciinema.org/a/262583.js" id="asciicast-262583" async data-autoplay="true" data-loop="true"></script>
+
+  <h2><a href="#usage" aria-hidden="true" class="anchor" id="usage"></a>Usage</h2>
+
+  <p>
+    These usage examples assume that you use Docker, but should not be much different for
+    other OCI-compatible platforms.
+  </p>
+
+  <p>
+    Pull an image from this registry, separating each package you want included by a
+    slash:
+  </p>
+
+  <pre style="background-color:#f6f8fa;padding:16px;"><span style="color:#323232;">docker pull <span class="registry-hostname">nixery.dev</span>/shell/git/htop</span></pre>
+
+  <p>
+    This gives you an image with <code>git</code>, <code>htop</code> and an interactively
+    configured shell. You could run it like this:
+  </p>
+
+  <pre style="background-color:#f6f8fa;padding:16px;"><span style="color:#323232;">docker run -ti <span class="registry-hostname">nixery.dev</span>/shell/git/htop bash</span></pre>
+
+  <p>
+    Each path segment corresponds either to a key in the Nix package set, or a
+    meta-package that automatically expands to several other packages.
+  </p>
+
+  <p>
+    Meta-packages <strong>must</strong> be the first path component if they are used.
+    Currently there are only two meta-packages:
+  </p>
+
+  <ul>
+    <li>
+      <p>
+        <code>shell</code>, which provides a <code>bash</code>-shell with interactive
+        configuration and standard tools like <code>coreutils</code></p>
+    </li>
+    <li>
+      <p><code>arm64</code>, which provides ARM64 binaries</p>
+    </li>
+  </ul>
+
+  <h2><a href="#faq" aria-hidden="true" class="anchor" id="faq"></a>FAQ</h2>
+
+  <h3>
+    <a href="#how-does-this-work" aria-hidden="true" class="anchor" id="how-does-this-work"></a>
+    How does this work?
+  </h3>
+
+  <p>
+    The short version is that we use the Nix package manager and an optimised
+    <a href="https://tazj.in/blog/nixery-layers">layering strategy</a>.
+  </p>
+
+  <p>
+    Check out <a href="https://www.youtube.com/watch?v=pOI9H4oeXqA">the Nixery talk</a>
+    from NixCon 2019 for more information.
+  </p>
+
+  <h3>
+    <a href="#should-i-depend-on-nixerydev-in-production" aria-hidden="true" class="anchor" id="should-i-depend-on-nixerydev-in-production"></a>
+    Should I depend on <code>nixery.dev</code> in production?
+  </h3>
+
+  <p>
+    While we appreciate the enthusiasm, if you would like to use Nixery in your production
+    project we recommend setting up a private instance. The public Nixery
+    at <code>nixery.dev</code> is run on a best-effort basis and we make no guarantees
+    about availability.
+  </p>
+
+  <h3>
+    <a href="#who-made-this" aria-hidden="true" class="anchor" id="who-made-this"></a>
+    Who made this?
+  </h3>
+
+  <p>
+    Nixery was written by <a href="https://tazj.in">tazjin</a>, originally at Google.
+    These days Nixery is maintained by <a href="https://tvl.su">TVL</a>.
+  </p>
+  <p>
+    Nixery would not be possible without the many people that have contributed to Nix and
+    nixpkgs over time, maybe you could become one of them?
+  </p>
+
+  <h3>
+    <a href="#where-is-the-source-code-for-this" aria-hidden="true" class="anchor" id="where-is-the-source-code-for-this"></a>
+    Where is the source code for this?
+  </h3>
+
+  <p>
+    Nixery lives in the <a href="https://cs.tvl.fyi/depot/-/tree/tools/nixery">TVL
+      monorepo</a>. All development happens there and follows
+      the <a href="https://cs.tvl.fyi/depot/-/blob/docs/CONTRIBUTING.md">TVL contribution
+      guidelines</a>.
+  </p>
+
+  <p>
+    We <em>mirror</em> the source code <a href="https://github.com/tazjin/nixery">to
+    Github</a> but do not guarantee that anyone will look at PRs or issues there.
+  </p>
+
+  <hr>
+  <footer>
+    <p class="footer">
+      <a class="uncoloured-link" href="https://at.tvl.fyi/?q=//tools/nixery">code</a>
+      |
+      <a class="uncoloured-link" href="https://cl.tvl.fyi/q/file:%2522%255Etools/nixery/.*%2522">reviews</a>
+      |
+      <a class="uncoloured-link" href="https://b.tvl.fyi/">bugs</a>
+    </p>
+    <p class="lod">ಠ_ಠ</p>
+  </footer>
+
+  <script>
+    /* Replace the hostnames above with the one at which this page runs. */
+    let hostname = window.location.hostname;
+    if (hostname != '') {
+        for (span of document.getElementsByClassName("registry-hostname")) {
+            span.textContent = hostname;
+        }
+    }
+  </script>
+</body>
