@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/src/nixery-logo.png">
+  <img src="https://nixery.dev/nixery-logo.png">
 </div>
 
 -----------------
