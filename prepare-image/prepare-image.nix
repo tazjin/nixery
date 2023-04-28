@@ -13,7 +13,7 @@
 {
   # Description of the package set to be used (will be loaded by load-pkgs.nix)
   srcType ? "nixpkgs"
-, srcArgs ? "nixos-20.09"
+, srcArgs ? "nixos-unstable"
 , system ? "x86_64-linux"
 , importArgs ? { }
 , # Path to load-pkgs.nix
@@ -89,6 +89,19 @@ let
     in
     attrByPath path fetchLower s;
 
+  # Workaround for a workaround in nixpkgs: Unquoted language
+  # identifiers can not start with numbers in Nix, but some package
+  # names start with numbers (such as `1password`).
+  #
+  # In nixpkgs convention, these identifiers are prefixed with
+  # underscores (e.g. `_1password`), however this is not accepted by
+  # the Docker registry protocol.
+  #
+  # To make this work, we detect these kinds of packages and add the
+  # missing underscore.
+  needsUnderscore = pkg: (builtins.match "^[0-9].*" pkg) != null;
+  normalisedPackages = map (p: if needsUnderscore p then "_${p}" else p) (fromJSON packages);
+
   # allContents contains all packages successfully retrieved by name
   # from the package set, as well as any errors encountered while
   # attempting to fetch a package.
@@ -104,7 +117,7 @@ let
         then attrs // { errors = attrs.errors ++ [ res ]; }
         else attrs // { contents = attrs.contents ++ [ res ]; };
       init = { contents = [ ]; errors = [ ]; };
-      fetched = (map (deepFetch pkgs) (fromJSON packages));
+      fetched = (map (deepFetch pkgs) normalisedPackages);
     in
     foldl' splitter init fetched;
 
