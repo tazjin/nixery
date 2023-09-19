@@ -34,6 +34,6 @@ It currently does not evaluate nested attribute sets (such as
    ```
 
    In essence, this will trim Nix's store paths and hashes from the output,
-   count the occurences of each package and return the output as JSON. All
+   count the occurrences of each package and return the output as JSON. All
    packages that have no references other than themselves are removed from the
    output.
