@@ -11,10 +11,10 @@
 //
 // # Inputs
 //
-// * a graph of Nix runtime dependencies, generated via exportReferenceGraph
-// * popularity values of each package in the Nix package set (in the form of a
-//   direct reference count)
-// * a maximum number of layers to allocate for the image (the "layer budget")
+//   - a graph of Nix runtime dependencies, generated via exportReferenceGraph
+//   - popularity values of each package in the Nix package set (in the form of a
+//     direct reference count)
+//   - a maximum number of layers to allocate for the image (the "layer budget")
 //
 // # Algorithm
 //
@@ -30,14 +30,15 @@
 // │     │
 // │     v
 // └───> D ───> F
-//       │
-//       └────> G
+//
+//	│
+//	└────> G
 //
 // Each node (i.e. package) is then visited to determine how important
 // it is to separate this node into its own layer, specifically:
 //
-// 1. Is the node within a certain threshold percentile of absolute
-//    popularity within all of nixpkgs? (e.g. `glibc`, `openssl`)
+//  1. Is the node within a certain threshold percentile of absolute
+//     popularity within all of nixpkgs? (e.g. `glibc`, `openssl`)
 //
 // 2. Is the node's runtime closure above a threshold size? (e.g. 100MB)
 //
