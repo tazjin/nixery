@@ -54,8 +54,8 @@ type imageConfig struct {
 	} `json:"rootfs"`
 
 	Config struct {
-		Cmd []string `json:"cmd,omitempty"`
-		Env []string `json:"env,omitempty"`
+		Cmd []string `json:",omitempty"`
+		Env []string `json:",omitempty"`
 	} `json:"config"`
 }
 
