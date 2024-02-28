@@ -72,60 +72,58 @@ depot.nix.readTree.drvTargets rec {
     };
   };
 
+  # Wrapper script for the wrapper script (meta!) which configures
+  # the container environment appropriately.
+  #
+  # Most importantly, sandboxing is disabled to avoid privilege
+  # issues in containers.
+  nixery-launch-script = writeShellScriptBin "nixery" ''
+    set -e
+    export PATH=${coreutils}/bin:$PATH
+    export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+    mkdir -p /tmp
+
+    # Create the build user/group required by Nix
+    echo 'nixbld:x:30000:nixbld' >> /etc/group
+    echo 'nixbld:x:30000:30000:nixbld:/tmp:/bin/bash' >> /etc/passwd
+    echo 'root:x:0:0:root:/root:/bin/bash' >> /etc/passwd
+    echo 'root:x:0:' >> /etc/group
+
+    # Disable sandboxing to avoid running into privilege issues
+    mkdir -p /etc/nix
+    echo 'sandbox = false' >> /etc/nix/nix.conf
+
+    # In some cases users building their own image might want to
+    # customise something on the inside (e.g. set up an environment
+    # for keys or whatever).
+    #
+    # This can be achieved by setting a 'preLaunch' script.
+    ${preLaunch}
+
+    exec ${nixery}/bin/server
+  '';
+
   # Container image containing Nixery and Nix itself. This image can
   # be run on Kubernetes, published on AppEngine or whatever else is
   # desired.
-  nixery-image =
-    let
-      # Wrapper script for the wrapper script (meta!) which configures
-      # the container environment appropriately.
-      #
-      # Most importantly, sandboxing is disabled to avoid privilege
-      # issues in containers.
-      nixery-launch-script = writeShellScriptBin "nixery" ''
-        set -e
-        export PATH=${coreutils}/bin:$PATH
-        export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
-        mkdir -p /tmp
+  nixery-image = dockerTools.buildLayeredImage {
+    name = "nixery";
+    config.Cmd = [ "${nixery-launch-script}/bin/nixery" ];
 
-        # Create the build user/group required by Nix
-        echo 'nixbld:x:30000:nixbld' >> /etc/group
-        echo 'nixbld:x:30000:30000:nixbld:/tmp:/bin/bash' >> /etc/passwd
-        echo 'root:x:0:0:root:/root:/bin/bash' >> /etc/passwd
-        echo 'root:x:0:' >> /etc/group
-
-        # Disable sandboxing to avoid running into privilege issues
-        mkdir -p /etc/nix
-        echo 'sandbox = false' >> /etc/nix/nix.conf
-
-        # In some cases users building their own image might want to
-        # customise something on the inside (e.g. set up an environment
-        # for keys or whatever).
-        #
-        # This can be achieved by setting a 'preLaunch' script.
-        ${preLaunch}
-
-        exec ${nixery}/bin/server
-      '';
-    in
-    dockerTools.buildLayeredImage {
-      name = "nixery";
-      config.Cmd = [ "${nixery-launch-script}/bin/nixery" ];
-
-      inherit maxLayers;
-      contents = [
-        bashInteractive
-        cacert
-        coreutils
-        git
-        gnutar
-        gzip
-        iana-etc
-        nix
-        nixery-prepare-image
-        nixery-launch-script
-        openssh
-        zlib
-      ] ++ extraPackages;
-    };
+    inherit maxLayers;
+    contents = [
+      bashInteractive
+      cacert
+      coreutils
+      git
+      gnutar
+      gzip
+      iana-etc
+      nix
+      nixery-prepare-image
+      nixery-launch-script
+      openssh
+      zlib
+    ] ++ extraPackages;
+  };
 }
