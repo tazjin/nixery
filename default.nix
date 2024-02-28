@@ -59,7 +59,7 @@ depot.nix.readTree.drvTargets rec {
     nativeBuildInputs = [ makeWrapper ];
     postInstall = ''
       wrapProgram $out/bin/server \
-        --set WEB_DIR "${nixery-web}" \
+        --set-default WEB_DIR "${nixery-web}" \
         --prefix PATH : ${nixery-prepare-image}/bin
     '';
 
