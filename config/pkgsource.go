@@ -50,10 +50,9 @@ func (g *GitSource) Render(tag string) (string, string) {
 	}
 
 	// The 'git' source requires a tag to be present. If the user
-	// has not specified one, it is assumed that the default
-	// 'master' branch should be used.
+	// has not specified one, it is assumed that 'HEAD' should be used.
 	if tag == "latest" || tag == "" {
-		tag = "master"
+		tag = "HEAD"
 	}
 
 	if commitRegex.MatchString(tag) {
