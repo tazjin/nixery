@@ -152,5 +152,5 @@ Nix builds.
 [gist]: https://gist.github.com/tazjin/08f3d37073b3590aacac424303e6f745
 [buildLayeredImage]: https://grahamc.com/blog/nix-and-layered-docker-images
 [public]: https://nixery.dev
-[depot-link]: https://cs.tvl.fyi/depot/-/tree/tools/nixery
+[depot-link]: https://code.tvl.fyi/tree/tools/nixery
 [gcs]: https://cloud.google.com/storage/
