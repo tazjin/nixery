@@ -2,14 +2,14 @@
   <img src="https://nixery.dev/nixery-logo.png">
 </div>
 
------------------
+---
 
 [![Build status](https://badge.buildkite.com/016bff4b8ae2704a3bbbb0a250784e6692007c582983b6dea7.svg?branch=refs/heads/canon)](https://buildkite.com/tvl/depot)
 
 **Nixery** is a Docker-compatible container registry that is capable of
 transparently building and serving container images using [Nix][].
 
-Images are built on-demand based on the *image name*. Every package that the
+Images are built on-demand based on the _image name_. Every package that the
 user intends to include in the image is specified as a path component of the
 image name.
 
@@ -48,13 +48,13 @@ interactive images.
 
 ## Feature overview
 
-* Serve container images on-demand using image names as content specifications
+- Serve container images on-demand using image names as content specifications
 
   Specify package names as path components and Nixery will create images, using
   the most efficient caching strategy it can to share data between different
   images.
 
-* Use private package sets from various sources
+- Use private package sets from various sources
 
   In addition to building images from the publicly available Nix/NixOS channels,
   a private Nixery instance can be configured to serve images built from a
@@ -68,7 +68,7 @@ interactive images.
 
   `docker pull nixery.thecompany.website/custom-service:release-v2`
 
-* Efficient serving of image layers from Google Cloud Storage
+- Efficient serving of image layers from Google Cloud Storage
 
   After building an image, Nixery stores all of its layers in a GCS bucket and
   forwards requests to retrieve layers to the bucket. This enables efficient
@@ -80,20 +80,21 @@ interactive images.
 Nixery supports the following configuration options, provided via environment
 variables:
 
-* `PORT`: HTTP port on which Nixery should listen
-* `NIXERY_CHANNEL`: The name of a Nix/NixOS channel to use for building
-* `NIXERY_PKGS_REPO`: URL of a git repository containing a package set (uses
+- `PORT`: HTTP port on which Nixery should listen
+- `NIXERY_CHANNEL`: The name of a Nix/NixOS channel to use for building
+- `NIXERY_PKGS_REPO`: URL of a git repository containing a package set (uses
   locally configured SSH/git credentials)
-* `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to
+- `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to
   use for building
-* `NIXERY_STORAGE_BACKEND`: The type of backend storage to use, currently
-  supported values are `gcs` (Google Cloud Storage) and `filesystem`.
+- `NIXERY_STORAGE_BACKEND`: The type of backend storage to use, currently
+  supported values are `gcs` (Google Cloud Storage), `s3` (AWS S3), and `filesystem`.
 
   For each of these additional backend configuration is necessary, see the
   [storage section](#storage) for details.
-* `NIX_TIMEOUT`: Number of seconds that any Nix builder is allowed to run
+
+- `NIX_TIMEOUT`: Number of seconds that any Nix builder is allowed to run
   (defaults to 60)
-* `NIX_POPULARITY_URL`: URL to a file containing popularity data for
+- `NIX_POPULARITY_URL`: URL to a file containing popularity data for
   the package set (see `popcount/`)
 
 If the `GOOGLE_APPLICATION_CREDENTIALS` environment variable is set to a service
@@ -110,20 +111,31 @@ objects need to be publicly accessible.
 Nixery supports multiple different storage backends in which its build cache and
 image layers are kept, and from which they are served.
 
-Currently the available storage backends are Google Cloud Storage and the local
+Currently the available storage backends are Google Cloud Storage, AWS S3, and the local
 file system.
 
-In the GCS case, images are served by redirecting clients to the storage bucket.
+In the GCS and S3 cases, images are served by redirecting clients to the storage bucket.
 Layers stored on the filesystem are served straight from the local disk.
 
 These extra configuration variables must be set to configure storage backends:
 
-* `GCS_BUCKET`: Name of the Google Cloud Storage bucket to use (**required** for
-  `gcs`)
-* `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON key
-  (**optional** for `gcs`)
-* `STORAGE_PATH`: Path to a folder in which to store and from which to serve
-  data (**required** for `filesystem`)
+**For Google Cloud Storage (`gcs`):**
+
+- `GCS_BUCKET`: Name of the Google Cloud Storage bucket to use (**required**)
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to a GCP service account JSON key
+  (**optional** - enables signed URLs for private buckets)
+
+**For AWS S3 (`s3`):**
+
+- `S3_BUCKET`: Name of the S3 bucket to use (**required**)
+- `AWS_REGION`: AWS region where the bucket is located (defaults to `us-east-1`)
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`: AWS credentials (**optional** - can use IAM roles, profiles, etc.)
+- `S3_USE_PRESIGNED_URLS`: Set to `false` to use direct public URLs instead of presigned URLs (**optional**, defaults to presigned URLs)
+
+**For local filesystem (`filesystem`):**
+
+- `STORAGE_PATH`: Path to a folder in which to store and from which to serve
+  data (**required**)
 
 ### Background
 
