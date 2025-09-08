@@ -49,16 +49,14 @@ func (g *GitSource) Render(tag string) (string, string) {
 		"url": g.repository,
 	}
 
-	// The 'git' source requires a tag to be present. If the user
-	// has not specified one, it is assumed that 'HEAD' should be used.
-	if tag == "latest" || tag == "" {
-		tag = "HEAD"
-	}
-
-	if commitRegex.MatchString(tag) {
-		args["rev"] = tag
-	} else {
-		args["ref"] = tag
+	// If the user has not specified a non-default tag,
+	// it is assumed that the implicit 'HEAD' of the repository should be used.
+	if tag != "latest" && tag != "" {
+		if commitRegex.MatchString(tag) {
+			args["rev"] = tag
+		} else {
+			args["ref"] = tag
+		}
 	}
 
 	j, _ := json.Marshal(args)
