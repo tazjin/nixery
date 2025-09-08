@@ -1,4 +1,4 @@
-# Copyright 2022 The TVL Contributors
+# Copyright The TVL Contributors
 # SPDX-License-Identifier: Apache-2.0
 
 # Configures a shell environment that builds required local packages to

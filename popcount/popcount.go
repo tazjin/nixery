@@ -1,4 +1,4 @@
-// Copyright 2022 The TVL Contributors
+// Copyright The TVL Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Popcount fetches popularity information for each store path in a

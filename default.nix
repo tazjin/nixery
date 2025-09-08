@@ -1,4 +1,4 @@
-# Copyright 2022 The TVL Contributors
+# Copyright The TVL Contributors
 # SPDX-License-Identifier: Apache-2.0
 
 # This function header aims to provide compatibility between builds of

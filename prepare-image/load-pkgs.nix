@@ -1,4 +1,4 @@
-# Copyright 2022 The TVL Contributors
+# Copyright The TVL Contributors
 # SPDX-License-Identifier: Apache-2.0
 
 # Load a Nix package set from one of the supported source types

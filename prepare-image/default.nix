@@ -1,4 +1,4 @@
-# Copyright 2022 The TVL Contributors
+# Copyright The TVL Contributors
 # SPDX-License-Identifier: Apache-2.0
 
 # This file builds a wrapper script called by Nixery to ask for the
