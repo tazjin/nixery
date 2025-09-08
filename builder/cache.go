@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
 	"sync"
 
@@ -58,7 +57,7 @@ func (c *LocalCache) manifestFromLocalCache(key string) (json.RawMessage, bool) 
 	}
 	defer f.Close()
 
-	m, err := ioutil.ReadAll(f)
+	m, err := io.ReadAll(f)
 	if err != nil {
 		slog.Error("failed to read manifest from local cache", "err", err, "manifest", key)
 
@@ -77,7 +76,7 @@ func (c *LocalCache) localCacheManifest(key string, m json.RawMessage) {
 	c.mmtx.Lock()
 	defer c.mmtx.Unlock()
 
-	err := ioutil.WriteFile(c.mdir+key, []byte(m), 0644)
+	err := os.WriteFile(c.mdir+key, []byte(m), 0644)
 	if err != nil {
 		slog.Error("failed to locally cache manifest", "err", err, "manifest", key)
 	}
@@ -114,7 +113,7 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 	}
 	defer r.Close()
 
-	m, err := ioutil.ReadAll(r)
+	m, err := io.ReadAll(r)
 	if err != nil {
 		slog.Error("failed to read cached manifest from storage backend", "err", err, "manifest", key, "backend", s.Storage.Name())
 

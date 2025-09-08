@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log/slog"
 	"net/http"
 	"os"
@@ -64,7 +63,7 @@ func downloadPopularity(url string) (layers.Popularity, error) {
 		return nil, fmt.Errorf("popularity download from '%s' returned status: %s\n", url, resp.Status)
 	}
 
-	j, err := ioutil.ReadAll(resp.Body)
+	j, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

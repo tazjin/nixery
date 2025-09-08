@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"sort"
@@ -200,7 +199,7 @@ func callNix(program, image string, args []string) ([]byte, error) {
 
 	slog.Info("invoked Nix build", "cmd", program, "image", image)
 
-	stdout, _ := ioutil.ReadAll(outpipe)
+	stdout, _ := io.ReadAll(outpipe)
 
 	if err = cmd.Wait(); err != nil {
 		slog.Info("failed to invoke Nix", "err", err, "image", image, "cmd", program, "stdout", stdout)
@@ -209,7 +208,7 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	}
 
 	resultFile := strings.TrimSpace(string(stdout))
-	buildOutput, err := ioutil.ReadFile(resultFile)
+	buildOutput, err := os.ReadFile(resultFile)
 	if err != nil {
 		slog.Info("failed to read Nix result file", "err", err, "image", image, "file", resultFile)
 

@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -76,7 +75,7 @@ func channelMetadata(channel string) meta {
 	failOn(err, "failed to retrieve commit for channel")
 
 	defer commitResp.Body.Close()
-	commit, err := ioutil.ReadAll(commitResp.Body)
+	commit, err := io.ReadAll(commitResp.Body)
 	failOn(err, "failed to read commit from response")
 	if commitResp.StatusCode != 200 {
 		log.Fatalf("non-success status code when fetching commit: %s (%v)", string(commit), commitResp.StatusCode)
@@ -109,7 +108,7 @@ func downloadStorePaths(c *meta) []string {
 	err = cmd.Start()
 	failOn(err, "failed to start xzcat")
 
-	paths, err := ioutil.ReadAll(stdout)
+	paths, err := io.ReadAll(stdout)
 	failOn(err, "failed to read uncompressed store paths")
 
 	err = cmd.Wait()
@@ -156,7 +155,7 @@ func narInfoToRefs(narinfo string) []string {
 }
 
 func fetchNarInfo(i *item) (string, error) {
-	file, err := ioutil.ReadFile("popcache/" + i.hash)
+	file, err := os.ReadFile("popcache/" + i.hash)
 	if err == nil {
 		return string(file), nil
 	}
@@ -168,10 +167,10 @@ func fetchNarInfo(i *item) (string, error) {
 
 	defer resp.Body.Close()
 
-	narinfo, err := ioutil.ReadAll(resp.Body)
+	narinfo, err := io.ReadAll(resp.Body)
 
 	// best-effort write the file to the cache
-	ioutil.WriteFile("popcache/"+i.hash, narinfo, 0644)
+	os.WriteFile("popcache/"+i.hash, narinfo, 0644)
 
 	return string(narinfo), err
 }
@@ -271,7 +270,7 @@ func main() {
 
 	bytes, _ := json.Marshal(counts)
 	outfile := fmt.Sprintf("popularity-%s-%s.json", meta.name, meta.commit)
-	err = ioutil.WriteFile(outfile, bytes, 0644)
+	err = os.WriteFile(outfile, bytes, 0644)
 	if err != nil {
 		log.Fatalf("Failed to write output to '%s': %s\n", outfile, err)
 	}

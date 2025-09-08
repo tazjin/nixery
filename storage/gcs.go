@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -177,7 +176,7 @@ func signingOptsFromEnv() (*storage.SignedURLOptions, error) {
 		return nil, nil
 	}
 
-	key, err := ioutil.ReadFile(path)
+	key, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read service account key: %s", err)
 	}
