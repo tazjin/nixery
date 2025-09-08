@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/google/nixery/manifest"
-	log "github.com/sirupsen/logrus"
+	"log/slog"
 )
 
 // LocalCache implements the structure used for local caching of
@@ -52,8 +52,7 @@ func (c *LocalCache) manifestFromLocalCache(key string) (json.RawMessage, bool) 
 		// This is a debug log statement because failure to
 		// read the manifest key is currently expected if it
 		// is not cached.
-		log.WithError(err).WithField("manifest", key).
-			Debug("failed to read manifest from local cache")
+		slog.Debug("failed to read manifest from local cache", "err", err, "manifest", key)
 
 		return nil, false
 	}
@@ -61,8 +60,7 @@ func (c *LocalCache) manifestFromLocalCache(key string) (json.RawMessage, bool) 
 
 	m, err := ioutil.ReadAll(f)
 	if err != nil {
-		log.WithError(err).WithField("manifest", key).
-			Error("failed to read manifest from local cache")
+		slog.Error("failed to read manifest from local cache", "err", err, "manifest", key)
 
 		return nil, false
 	}
@@ -81,8 +79,7 @@ func (c *LocalCache) localCacheManifest(key string, m json.RawMessage) {
 
 	err := ioutil.WriteFile(c.mdir+key, []byte(m), 0644)
 	if err != nil {
-		log.WithError(err).WithField("manifest", key).
-			Error("failed to locally cache manifest")
+		slog.Error("failed to locally cache manifest", "err", err, "manifest", key)
 	}
 }
 
@@ -111,10 +108,7 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 
 	r, err := s.Storage.Fetch(ctx, "manifests/"+key)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"manifest": key,
-			"backend":  s.Storage.Name(),
-		}).Error("failed to fetch manifest from cache")
+		slog.Error("failed to fetch manifest from cache", "err", err, "manifest", key, "backend", s.Storage.Name())
 
 		return nil, false
 	}
@@ -122,16 +116,13 @@ func manifestFromCache(ctx context.Context, s *State, key string) (json.RawMessa
 
 	m, err := ioutil.ReadAll(r)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"manifest": key,
-			"backend":  s.Storage.Name(),
-		}).Error("failed to read cached manifest from storage backend")
+		slog.Error("failed to read cached manifest from storage backend", "err", err, "manifest", key, "backend", s.Storage.Name())
 
 		return nil, false
 	}
 
 	go s.Cache.localCacheManifest(key, m)
-	log.WithField("manifest", key).Info("retrieved manifest from GCS")
+	slog.Info("retrieved manifest from GCS", "manifest", key)
 
 	return json.RawMessage(m), true
 }
@@ -147,19 +138,12 @@ func cacheManifest(ctx context.Context, s *State, key string, m json.RawMessage)
 	})
 
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"manifest": key,
-			"backend":  s.Storage.Name(),
-		}).Error("failed to cache manifest to storage backend")
+		slog.Error("failed to cache manifest to storage backend", "err", err, "manifest", key, "backend", s.Storage.Name())
 
 		return
 	}
 
-	log.WithFields(log.Fields{
-		"manifest": key,
-		"size":     size,
-		"backend":  s.Storage.Name(),
-	}).Info("cached manifest to storage backend")
+	slog.Info("cached manifest to storage backend", "manifest", key, "size", size, "backend", s.Storage.Name())
 }
 
 // Retrieve a layer build from the cache, first checking the local
@@ -171,10 +155,7 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 
 	r, err := s.Storage.Fetch(ctx, "builds/"+key)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"layer":   key,
-			"backend": s.Storage.Name(),
-		}).Debug("failed to retrieve cached layer from storage backend")
+		slog.Debug("failed to retrieve cached layer from storage backend", "err", err, "layer", key, "backend", s.Storage.Name())
 
 		return nil, false
 	}
@@ -183,10 +164,7 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 	jb := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(jb, r)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"layer":   key,
-			"backend": s.Storage.Name(),
-		}).Error("failed to read cached layer from storage backend")
+		slog.Error("failed to read cached layer from storage backend", "err", err, "layer", key, "backend", s.Storage.Name())
 
 		return nil, false
 	}
@@ -194,8 +172,7 @@ func layerFromCache(ctx context.Context, s *State, key string) (*manifest.Entry,
 	var entry manifest.Entry
 	err = json.Unmarshal(jb.Bytes(), &entry)
 	if err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to unmarshal cached layer")
+		slog.Error("failed to unmarshal cached layer", "err", err, "layer", key)
 
 		return nil, false
 	}
@@ -215,10 +192,7 @@ func cacheLayer(ctx context.Context, s *State, key string, entry manifest.Entry)
 	})
 
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"layer":   key,
-			"backend": s.Storage.Name(),
-		}).Error("failed to cache layer")
+		slog.Error("failed to cache layer", "err", err, "layer", key, "backend", s.Storage.Name())
 	}
 
 	return

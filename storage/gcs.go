@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
 	"cloud.google.com/go/storage"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2/google"
 )
 
@@ -42,20 +42,18 @@ func NewGCSBackend() (*GCSBackend, error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
-		log.WithError(err).Fatal("failed to set up Cloud Storage client")
+		return nil, fmt.Errorf("failed to set up Cloud storage client: %w", err)
 	}
 
 	handle := client.Bucket(bucket)
 
 	if _, err := handle.Attrs(ctx); err != nil {
-		log.WithError(err).WithField("bucket", bucket).Error("could not access configured bucket")
-		return nil, err
+		return nil, fmt.Errorf("could not access configured bucket %q: %w", bucket, err)
 	}
 
 	signing, err := signingOptsFromEnv()
 	if err != nil {
-		log.WithError(err).Error("failed to configure GCS bucket signing")
-		return nil, err
+		return nil, fmt.Errorf("failed to configure GCS bucket signing: %w", err)
 	}
 
 	return &GCSBackend{
@@ -75,13 +73,13 @@ func (b *GCSBackend) Persist(ctx context.Context, path, contentType string, f Pe
 
 	hash, size, err := f(w)
 	if err != nil {
-		log.WithError(err).WithField("path", path).Error("failed to write to GCS")
+		slog.Error("failed to write to GCS", "err", err, "path", path)
 		return hash, size, err
 	}
 
 	err = w.Close()
 	if err != nil {
-		log.WithError(err).WithField("path", path).Error("failed to complete GCS upload")
+		slog.Error("failed to complete GCS upload", "err", err, "path", path)
 		return hash, size, err
 	}
 
@@ -93,7 +91,7 @@ func (b *GCSBackend) Persist(ctx context.Context, path, contentType string, f Pe
 		})
 
 		if err != nil {
-			log.WithError(err).WithField("path", path).Error("failed to update object attrs")
+			slog.Error("failed to update object attrs", "err", err, "path", path)
 			return hash, size, err
 		}
 	}
@@ -147,10 +145,7 @@ func (b *GCSBackend) Move(ctx context.Context, old, new string) error {
 	// renaming/moving them, hence a deletion call afterwards is
 	// required.
 	if err = b.handle.Object(old).Delete(ctx); err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"new": new,
-			"old": old,
-		}).Warn("failed to delete renamed object")
+		slog.Warn("failed to delete renamed object", "err", err, "new", new, "old", old)
 
 		// this error should not break renaming and is not returned
 	}
@@ -161,15 +156,12 @@ func (b *GCSBackend) Move(ctx context.Context, old, new string) error {
 func (b *GCSBackend) Serve(digest string, r *http.Request, w http.ResponseWriter) error {
 	url, err := b.constructLayerUrl(digest)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"digest": digest,
-			"bucket": b.bucket,
-		}).Error("failed to sign GCS URL")
+		slog.Error("failed to sign GCS URL", "err", err, "digest", digest, "bucket", b.bucket)
 
 		return err
 	}
 
-	log.WithField("digest", digest).Info("redirecting blob request to GCS bucket")
+	slog.Info("redirecting blob request to GCS bucket", "digest", digest)
 
 	w.Header().Set("Location", url)
 	w.WriteHeader(303)
@@ -195,7 +187,7 @@ func signingOptsFromEnv() (*storage.SignedURLOptions, error) {
 		return nil, fmt.Errorf("failed to parse service account key: %s", err)
 	}
 
-	log.WithField("account", conf.Email).Info("GCS URL signing enabled")
+	slog.Info("GCS URL signing enabled", "account", conf.Email)
 
 	return &storage.SignedURLOptions{
 		Scheme:         storage.SigningSchemeV4,
@@ -218,7 +210,7 @@ func signingOptsFromEnv() (*storage.SignedURLOptions, error) {
 // The Docker client is known to follow redirects, but this might not be true
 // for all other registry clients.
 func (b *GCSBackend) constructLayerUrl(digest string) (string, error) {
-	log.WithField("layer", digest).Info("redirecting layer request to bucket")
+	slog.Info("redirecting layer request to bucket", "layer", digest)
 	object := "layers/" + digest
 
 	if b.signing != nil {

@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"log/slog"
 )
 
 // PkgSource represents the source from which the Nix package set used
@@ -120,7 +120,7 @@ func (p *PkgsPath) CacheKey(pkgs []string, tag string) string {
 // specified, the Nix code will default to a recent NixOS channel.
 func pkgSourceFromEnv() (PkgSource, error) {
 	if channel := os.Getenv("NIXERY_CHANNEL"); channel != "" {
-		log.WithField("channel", channel).Info("using Nix package set from Nix channel or commit")
+		slog.Info("using Nix package set from Nix channel or commit", "channel", channel)
 
 		return &NixChannel{
 			channel: channel,
@@ -128,7 +128,7 @@ func pkgSourceFromEnv() (PkgSource, error) {
 	}
 
 	if git := os.Getenv("NIXERY_PKGS_REPO"); git != "" {
-		log.WithField("repo", git).Info("using Nix package set from git repository")
+		slog.Info("using Nix package set from git repository", "repo", git)
 
 		return &GitSource{
 			repository: git,
@@ -136,7 +136,7 @@ func pkgSourceFromEnv() (PkgSource, error) {
 	}
 
 	if path := os.Getenv("NIXERY_PKGS_PATH"); path != "" {
-		log.WithField("path", path).Info("using Nix package set at local path")
+		slog.Info("using Nix package set at local path", "path", path)
 
 		return &PkgsPath{
 			path: path,

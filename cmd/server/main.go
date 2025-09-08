@@ -21,17 +21,17 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log/slog"
 	"net/http"
+	"os"
 	"regexp"
 
 	"github.com/google/nixery/builder"
 	"github.com/google/nixery/config"
 	"github.com/google/nixery/layers"
-	"github.com/google/nixery/logs"
 	mf "github.com/google/nixery/manifest"
 	"github.com/google/nixery/storage"
 	"github.com/im7mortal/kmutex"
-	log "github.com/sirupsen/logrus"
 )
 
 // ManifestMediaType is the Content-Type used for the manifest itself. This
@@ -110,10 +110,7 @@ type registryHandler struct {
 // Serve a manifest by tag, building it via Nix and populating caches
 // if necessary.
 func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Request, name string, tag string) {
-	log.WithFields(log.Fields{
-		"image": name,
-		"tag":   tag,
-	}).Info("requesting image manifest")
+	slog.Info("requesting image manifest", "image", name, "tag", tag)
 
 	image := builder.ImageFromName(name, tag)
 	buildResult, err := builder.BuildImage(r.Context(), h.state, &image)
@@ -121,10 +118,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		writeError(w, 500, "UNKNOWN", "image build failure")
 
-		log.WithError(err).WithFields(log.Fields{
-			"image": name,
-			"tag":   tag,
-		}).Error("failed to build image manifest")
+		slog.Error("failed to build image manifest", "err", err, "image", name, "tag", tag)
 
 		return
 	}
@@ -135,11 +129,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 		s := fmt.Sprintf("Could not find Nix packages: %v", buildResult.Pkgs)
 		writeError(w, 404, "MANIFEST_UNKNOWN", s)
 
-		log.WithFields(log.Fields{
-			"image":    name,
-			"tag":      tag,
-			"packages": buildResult.Pkgs,
-		}).Warn("could not find Nix packages")
+		slog.Warn("could not find Nix packages", "image", name, "tag", tag, "packages", buildResult.Pkgs)
 
 		return
 	}
@@ -172,10 +162,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		writeError(w, 500, "MANIFEST_UPLOAD", "could not upload manifest to blob store")
 
-		log.WithError(err).WithFields(log.Fields{
-			"image": name,
-			"tag":   tag,
-		}).Error("could not upload manifest")
+		slog.Error("could not upload manifest", "err", err, "image", name, "tag", tag)
 
 		return
 	}
@@ -188,11 +175,7 @@ func (h *registryHandler) serveBlob(w http.ResponseWriter, r *http.Request, blob
 	storage := h.state.Storage
 	err := storage.Serve(digest, r, w)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"type":    blobType,
-			"digest":  digest,
-			"backend": storage.Name(),
-		}).Error("failed to serve blob from storage backend")
+		slog.Error("failed to serve blob from storage backend", "err", err, "type", blobType, "digest", digest, "backend", storage.Name())
 	}
 }
 
@@ -217,16 +200,24 @@ func (h *registryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.WithField("uri", r.RequestURI).Info("unsupported registry route")
+	slog.Info("unsupported registry route", "uri", r.RequestURI)
 
 	w.WriteHeader(404)
 }
 
 func main() {
-	logs.Init(version)
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     slog.LevelDebug,
+	})
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
+	slog.Info("initialised logging", "service", "nixery", "version", version)
 	cfg, err := config.FromEnv()
 	if err != nil {
-		log.WithError(err).Fatal("failed to load configuration")
+		slog.Error("failed to load configuration", "err", err)
+		os.Exit(1)
 	}
 
 	var s storage.Backend
@@ -238,22 +229,24 @@ func main() {
 		s, err = storage.NewFSBackend()
 	}
 	if err != nil {
-		log.WithError(err).Fatal("failed to initialise storage backend")
+		slog.Error("failed to initialise storage backend", "err", err)
+		os.Exit(1)
 	}
 
-	log.WithField("backend", s.Name()).Info("initialised storage backend")
+	slog.Info("initialised storage backend", "backend", s.Name())
 
 	cache, err := builder.NewCache()
 	if err != nil {
-		log.WithError(err).Fatal("failed to instantiate build cache")
+		slog.Error("failed to instantiate build cache", "err", err)
+		os.Exit(1)
 	}
 
 	var pop layers.Popularity
 	if cfg.PopUrl != "" {
 		pop, err = downloadPopularity(cfg.PopUrl)
 		if err != nil {
-			log.WithError(err).WithField("popURL", cfg.PopUrl).
-				Fatal("failed to fetch popularity information")
+			slog.Error("failed to fetch popularity information", "err", err, "popURL", cfg.PopUrl)
+			os.Exit(1)
 		}
 	}
 
@@ -265,10 +258,7 @@ func main() {
 		UploadMutex: kmutex.New(),
 	}
 
-	log.WithFields(log.Fields{
-		"version": version,
-		"port":    cfg.Port,
-	}).Info("starting Nixery")
+	slog.Info("starting Nixery", "version", version, "port", cfg.Port)
 
 	// All /v2/ requests belong to the registry handler.
 	http.Handle("/v2/", &registryHandler{
@@ -279,5 +269,9 @@ func main() {
 	webDir := http.Dir(cfg.WebDir)
 	http.Handle("/", http.FileServer(webDir))
 
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, nil))
+	err = http.ListenAndServe(":"+cfg.Port, nil)
+	if err != nil {
+		slog.Error("HTTP server error", "err", err)
+		os.Exit(1)
+	}
 }

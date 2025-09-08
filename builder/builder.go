@@ -27,7 +27,7 @@ import (
 	"github.com/google/nixery/manifest"
 	"github.com/google/nixery/storage"
 	"github.com/im7mortal/kmutex"
-	log "github.com/sirupsen/logrus"
+	"log/slog"
 )
 
 // The maximum number of layers in an image is 125. To allow for
@@ -174,10 +174,7 @@ func metaPackages(packages []string) (*Architecture, []string) {
 func logNix(image, cmd string, r io.ReadCloser) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		log.WithFields(log.Fields{
-			"image": image,
-			"cmd":   cmd,
-		}).Info("[nix] " + scanner.Text())
+		slog.Info("[nix] "+scanner.Text(), "image", image, "cmd", cmd)
 	}
 }
 
@@ -196,27 +193,17 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	go logNix(image, program, errpipe)
 
 	if err = cmd.Start(); err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"image": image,
-			"cmd":   program,
-		}).Error("error invoking Nix")
+		slog.Error("error invoking Nix", "err", err, "image", image, "cmd", program)
 
 		return nil, err
 	}
 
-	log.WithFields(log.Fields{
-		"cmd":   program,
-		"image": image,
-	}).Info("invoked Nix build")
+	slog.Info("invoked Nix build", "cmd", program, "image", image)
 
 	stdout, _ := ioutil.ReadAll(outpipe)
 
 	if err = cmd.Wait(); err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"image":  image,
-			"cmd":    program,
-			"stdout": stdout,
-		}).Info("failed to invoke Nix")
+		slog.Info("failed to invoke Nix", "err", err, "image", image, "cmd", program, "stdout", stdout)
 
 		return nil, err
 	}
@@ -224,10 +211,7 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	resultFile := strings.TrimSpace(string(stdout))
 	buildOutput, err := ioutil.ReadFile(resultFile)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"image": image,
-			"file":  resultFile,
-		}).Info("failed to read Nix result file")
+		slog.Info("failed to read Nix result file", "err", err, "image", image, "file", resultFile)
 
 		return nil, err
 	}
@@ -263,10 +247,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 		return nil, err
 	}
 
-	log.WithFields(log.Fields{
-		"image": image.Name,
-		"tag":   image.Tag,
-	}).Info("finished image preparation via Nix")
+	slog.Info("finished image preparation via Nix", "image", image.Name, "tag", image.Tag)
 
 	var result ImageResult
 	err = json.Unmarshal(output, &result)
@@ -313,11 +294,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 				pkgs = append(pkgs, layers.PackageFromPath(p))
 			}
 
-			log.WithFields(log.Fields{
-				"layer":    lh,
-				"packages": pkgs,
-				"tarhash":  tarhash,
-			}).Info("created image layer")
+			slog.Info("created image layer", "layer", lh, "packages", pkgs, "tarhash", tarhash)
 
 			return tarhash, err
 		}
@@ -336,11 +313,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 	entry, err := uploadHashLayer(ctx, s, slkey, 0, func(w io.Writer) (string, error) {
 		f, err := os.Open(result.SymlinkLayer.Path)
 		if err != nil {
-			log.WithError(err).WithFields(log.Fields{
-				"image": image.Name,
-				"tag":   image.Tag,
-				"layer": slkey,
-			}).Error("failed to open symlink layer")
+			slog.Error("failed to open symlink layer", "err", err, "image", image.Name, "tag", image.Tag, "layer", slkey)
 
 			return "", err
 		}
@@ -349,11 +322,7 @@ func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageRes
 		gz := gzip.NewWriter(w)
 		_, err = io.Copy(gz, f)
 		if err != nil {
-			log.WithError(err).WithFields(log.Fields{
-				"image": image.Name,
-				"tag":   image.Tag,
-				"layer": slkey,
-			}).Error("failed to upload symlink layer")
+			slog.Error("failed to upload symlink layer", "err", err, "image", image.Name, "tag", image.Tag, "layer", slkey)
 
 			return "", err
 		}
@@ -428,10 +397,7 @@ func uploadHashLayer(ctx context.Context, s *State, key string, mrating uint64, 
 	})
 
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"layer":   key,
-			"backend": s.Storage.Name(),
-		}).Error("failed to create and store layer")
+		slog.Error("failed to create and store layer", "err", err, "layer", key, "backend", s.Storage.Name())
 
 		return nil, err
 	}
@@ -440,17 +406,12 @@ func uploadHashLayer(ctx context.Context, s *State, key string, mrating uint64, 
 	// remains is to move it to the correct location and cache it.
 	err = s.Storage.Move(ctx, "staging/"+key, "layers/"+sha256sum)
 	if err != nil {
-		log.WithError(err).WithField("layer", key).
-			Error("failed to move layer from staging")
+		slog.Error("failed to move layer from staging", "err", err, "layer", key)
 
 		return nil, err
 	}
 
-	log.WithFields(log.Fields{
-		"layer":  key,
-		"sha256": sha256sum,
-		"size":   size,
-	}).Info("created and persisted layer")
+	slog.Info("created and persisted layer", "layer", key, "sha256", sha256sum, "size", size)
 
 	entry := manifest.Entry{
 		Digest:      "sha256:" + sha256sum,
@@ -508,10 +469,7 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 	}
 
 	if _, err = uploadHashLayer(ctx, s, c.SHA256, 0, lw); err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"image": image.Name,
-			"tag":   image.Tag,
-		}).Error("failed to upload config")
+		slog.Error("failed to upload config", "err", err, "image", image.Name, "tag", image.Tag)
 
 		return nil, err
 	}

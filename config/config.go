@@ -7,18 +7,15 @@
 package config
 
 import (
+	"log/slog"
 	"os"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func getConfig(key, desc, def string) string {
 	value := os.Getenv(key)
 	if value == "" && def == "" {
-		log.WithFields(log.Fields{
-			"option":      key,
-			"description": desc,
-		}).Fatal("missing required configuration envvar")
+		slog.Error("missing required configuration envvar", "option", key, "description", desc)
+		os.Exit(1)
 	} else if value == "" {
 		return def
 	}
@@ -57,9 +54,8 @@ func FromEnv() (Config, error) {
 	case "filesystem":
 		b = FileSystem
 	default:
-		log.WithField("values", []string{
-			"gcs",
-		}).Fatal("NIXERY_STORAGE_BACKEND must be set to a supported value (gcs or filesystem)")
+		slog.Error("NIXERY_STORAGE_BACKEND must be set to a supported value (gcs or filesystem)")
+		os.Exit(1)
 	}
 
 	return Config{

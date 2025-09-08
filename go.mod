@@ -7,7 +7,6 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/im7mortal/kmutex v1.0.2
 	github.com/pkg/xattr v0.4.12
-	github.com/sirupsen/logrus v1.8.1
 	golang.org/x/oauth2 v0.30.0
 	gonum.org/v1/gonum v0.16.0
 )

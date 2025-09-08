@@ -47,7 +47,7 @@ depot.nix.readTree.drvTargets rec {
     doCheck = true;
 
     # Needs to be updated after every modification of go.mod/go.sum
-    vendorHash = "sha256:14mm3l1kyvina1dnl1v13l3qq8vcn89ydzqqmfj1pllmkh8sbl1l";
+    vendorHash = "sha256:1qv193v8c8bav1xjprv7ra45ygzcjv2yqv2wnz9hr8qn4gz1f4da";
 
     ldflags = [
       "-s"

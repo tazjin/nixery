@@ -113,9 +113,9 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"gonum.org/v1/gonum/graph/flow"
 	"gonum.org/v1/gonum/graph/simple"
+	"log/slog"
 )
 
 // runtimeGraph represents structured information from Nix about the runtime
@@ -330,10 +330,7 @@ func dominate(budget int, graph *simple.DirectedGraph) []Layer {
 	})
 
 	if len(layers) > budget {
-		log.WithFields(log.Fields{
-			"layers": len(layers),
-			"budget": budget,
-		}).Info("ideal image exceeds layer budget")
+		slog.Info("ideal image exceeds layer budget", "layers", len(layers), "budget", budget)
 	}
 
 	for len(layers) > budget {
