@@ -84,6 +84,7 @@ variables:
 * `NIXERY_CHANNEL`: The name of a Nix/NixOS channel to use for building
 * `NIXERY_PKGS_REPO`: URL of a git repository containing a package set (uses
   locally configured SSH/git credentials)
+* `NIXERY_DEFAULT_TAG`: rev/ref to use as the default for `latest`/empty
 * `NIXERY_PKGS_PATH`: A local filesystem path containing a Nix package set to
   use for building
 * `NIXERY_STORAGE_BACKEND`: The type of backend storage to use, currently
