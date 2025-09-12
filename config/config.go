@@ -36,9 +36,9 @@ type Config struct {
 	Port    string    // Port on which to launch HTTP server
 	Pkgs    PkgSource // Source for Nix package set
 	Timeout string    // Timeout for a single Nix builder (seconds)
-	WebDir  string    // Directory with static web assets
-	PopUrl  string    // URL to the Nix package popularity count
-	Backend Backend   // Storage backend to use for Nixery
+
+	PopUrl  string  // URL to the Nix package popularity count
+	Backend Backend // Storage backend to use for Nixery
 }
 
 func FromEnv() (Config, error) {
@@ -62,7 +62,6 @@ func FromEnv() (Config, error) {
 		Port:    getConfig("PORT", "HTTP port", ""),
 		Pkgs:    pkgs,
 		Timeout: getConfig("NIX_TIMEOUT", "Nix builder timeout", "60"),
-		WebDir:  getConfig("WEB_DIR", "Static web file dir", ""),
 		PopUrl:  os.Getenv("NIX_POPULARITY_URL"),
 		Backend: b,
 	}, nil

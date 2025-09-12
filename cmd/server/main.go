@@ -24,7 +24,9 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"text/template"
 
+	"github.com/google/nixery/assets"
 	"github.com/google/nixery/builder"
 	"github.com/google/nixery/config"
 	"github.com/google/nixery/layers"
@@ -42,6 +44,32 @@ const manifestMediaType string = "application/vnd.docker.distribution.manifest.v
 // This variable will be initialised during the build process and set
 // to the hash of the entire Nixery source tree.
 var version string = "devel"
+
+// indexHandler serves the main page with dynamic hostname replacement
+type indexHandler struct {
+	template *template.Template
+}
+
+func (h *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	hostname := r.Host
+	if hostname == "" {
+		hostname = "nixery.dev"
+	}
+
+	data := struct {
+		Hostname string
+		Version  string
+	}{
+		Hostname: hostname,
+		Version:  version,
+	}
+
+	err := h.template.Execute(w, data)
+	if err != nil {
+		slog.Error("failed to execute template", "err", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
 
 // Regexes matching the V2 Registry API routes. This only includes the
 // routes required for serving images, since pushing and other such
@@ -264,9 +292,20 @@ func main() {
 		state: &state,
 	})
 
-	// All other roots are served by the static file server.
-	webDir := http.Dir(cfg.WebDir)
-	http.Handle("/", http.FileServer(webDir))
+	// Parse the embedded index template
+	tmpl, err := template.New("index").Parse(assets.IndexTemplate)
+	if err != nil {
+		slog.Error("failed to parse index template", "err", err)
+		os.Exit(1)
+	}
+
+	// Serve the main index page with dynamic content
+	http.Handle("/", &indexHandler{
+		template: tmpl,
+	})
+
+	// Serve static assets (logo, etc.) from embedded filesystem
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(assets.Files))))
 
 	err = http.ListenAndServe(":"+cfg.Port, nil)
 	if err != nil {

@@ -29,10 +29,7 @@ depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
   nixery-prepare-image = import ./prepare-image { inherit pkgs; };
 
-  # Include the Nixery website into the Nix store, unless its being
-  # overridden to something else. Nixery will serve this as its front
-  # page when visited from a browser.
-  nixery-web = ./web;
+
 
   nixery-popcount = callPackage ./popcount { };
 
@@ -59,7 +56,6 @@ depot.nix.readTree.drvTargets rec {
     nativeBuildInputs = [ makeWrapper ];
     postInstall = ''
       wrapProgram $out/bin/server \
-        --set-default WEB_DIR "${nixery-web}" \
         --prefix PATH : ${nixery-prepare-image}/bin
     '';
 

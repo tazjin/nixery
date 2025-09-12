@@ -8,7 +8,7 @@
   <title>Nixery</title>
 </head>
 <body class="light">
-  <img src="./nixery-logo.png" alt="Nixery">
+  <img src="/static/nixery-logo.png" alt="Nixery">
   <hr>
 
   <p>
@@ -18,16 +18,9 @@
 
   <p>
     You can pull container images from this registry
-    at <code><span class="registry-hostname">nixery.dev</span></code> by appending any
+    at <code><span class="registry-hostname">{{.Hostname}}</span></code> by appending any
     packages that you need in the URL, separated by slashes.
   </p>
-
-  <noscript>
-    <p class="cheddar-callout cheddar-tip">
-      <strong>NOTE:</strong> When pulling from a private Nixery instance,
-      replace <code>nixery.dev</code> in the above examples with your registry address.
-    </p>
-  </noscript>
 
   <h2><a href="#demo" aria-hidden="true" class="anchor" id="demo"></a>Demo</h2>
 
@@ -52,14 +45,14 @@
     slash:
   </p>
 
-  <pre style="background-color:#f6f8fa;padding:16px;"><span style="color:#323232;">docker pull <span class="registry-hostname">nixery.dev</span>/shell/git/htop</span></pre>
+  <pre style="background-color:#f6f8fa;padding:16px;"><span style="color:#323232;">docker pull <span class="registry-hostname">{{.Hostname}}</span>/shell/git/htop</span></pre>
 
   <p>
     This gives you an image with <code>git</code>, <code>htop</code> and an interactively
     configured shell. You could run it like this:
   </p>
 
-  <pre style="background-color:#f6f8fa;padding:16px;"><span style="color:#323232;">docker run -ti <span class="registry-hostname">nixery.dev</span>/shell/git/htop bash</span></pre>
+  <pre style="background-color:#f6f8fa;padding:16px;"><span style="color:#323232;">docker run -ti <span class="registry-hostname">{{.Hostname}}</span>/shell/git/htop bash</span></pre>
 
   <p>
     Each path segment corresponds either to a key in the Nix package set, or a
@@ -154,13 +147,5 @@
     <p class="lod">ಠ_ಠ</p>
   </footer>
 
-  <script>
-    /* Replace the hostnames above with the one at which this page runs. */
-    let hostname = window.location.hostname;
-    if (hostname != '') {
-        for (span of document.getElementsByClassName("registry-hostname")) {
-            span.textContent = hostname;
-        }
-    }
-  </script>
+
 </body>
