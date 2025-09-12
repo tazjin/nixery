@@ -8,7 +8,6 @@
 package builder
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -42,6 +41,7 @@ type State struct {
 	Cfg         config.Config
 	Pop         layers.Popularity
 	UploadMutex *kmutex.Kmutex
+	Errors      *ErrorCache
 }
 
 // Architecture represents the possible CPU architectures for which
@@ -168,16 +168,7 @@ func metaPackages(packages []string) (*Architecture, []string) {
 	return arch, packages
 }
 
-// logNix logs each output line from Nix. It runs in a goroutine per
-// output channel that should be live-logged.
-func logNix(image, cmd string, r io.ReadCloser) {
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		slog.Info("[nix] "+scanner.Text(), "image", image, "cmd", cmd)
-	}
-}
-
-func callNix(program, image string, args []string) ([]byte, error) {
+func callNix(program, image string, args []string, ec *ErrorCache) ([]byte, error) {
 	cmd := exec.Command(program, args...)
 
 	outpipe, err := cmd.StdoutPipe()
@@ -189,7 +180,6 @@ func callNix(program, image string, args []string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	go logNix(image, program, errpipe)
 
 	if err = cmd.Start(); err != nil {
 		slog.Error("error invoking Nix", "err", err, "image", image, "cmd", program)
@@ -199,11 +189,15 @@ func callNix(program, image string, args []string) ([]byte, error) {
 
 	slog.Info("invoked Nix build", "cmd", program, "image", image)
 
-	stdout, _ := io.ReadAll(outpipe)
+	stdoutBytes, _ := io.ReadAll(outpipe)
+	stderrBytes, _ := io.ReadAll(errpipe)
+	stdout, stderr := strings.TrimSpace(string(stdoutBytes)), strings.TrimSpace(string(stderrBytes))
 
 	if err = cmd.Wait(); err != nil {
-		slog.Info("failed to invoke Nix", "err", err, "image", image, "cmd", program, "stdout", stdout)
-
+		slog.Info("failed to invoke Nix", "err", err, "image", image, "cmd", program, "stdout", stdout, "stderr", stderr)
+		if stderr != "" {
+			ec.AddError(image, stderr)
+		}
 		return nil, err
 	}
 
@@ -240,7 +234,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 		"--argstr", "system", image.Arch.nixSystem,
 	}
 
-	output, err := callNix("nixery-prepare-image", image.Name, args)
+	output, err := callNix("nixery-prepare-image", image.Name, args, s.Errors)
 	if err != nil {
 		// granular error logging is performed in callNix already
 		return nil, err

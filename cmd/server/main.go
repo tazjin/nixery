@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -177,7 +176,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	// as soon as they see a response.
 	sha256sum := fmt.Sprintf("%x", sha256.Sum256(manifest))
 	path := "layers/" + sha256sum
-	ctx := context.TODO()
+	ctx := r.Context()
 
 	_, _, err = h.state.Storage.Persist(ctx, path, mf.ManifestType, func(sw io.Writer) (string, int64, error) {
 		// We already know the hash, so no additional hash needs to be
@@ -283,6 +282,7 @@ func main() {
 		Pop:         pop,
 		Storage:     s,
 		UploadMutex: kmutex.New(),
+		Errors:      builder.NewErrorCache(15),
 	}
 
 	slog.Info("starting Nixery", "version", version, "port", cfg.Port)
