@@ -47,6 +47,7 @@ var version string = "devel"
 // indexHandler serves the main page with dynamic hostname replacement
 type indexHandler struct {
 	template *template.Template
+	errors   *builder.ErrorCache
 }
 
 func (h *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -58,9 +59,11 @@ func (h *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		Hostname string
 		Version  string
+		Errors   []*builder.BuildError
 	}{
 		Hostname: hostname,
 		Version:  version,
+		Errors:   h.errors.GetAllErrors(),
 	}
 
 	err := h.template.Execute(w, data)
@@ -300,9 +303,7 @@ func main() {
 	}
 
 	// Serve the main index page with dynamic content
-	http.Handle("/", &indexHandler{
-		template: tmpl,
-	})
+	http.Handle("/", &indexHandler{tmpl, state.Errors})
 
 	// Serve static assets (logo, etc.) from embedded filesystem
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(assets.Files))))

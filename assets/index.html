@@ -75,6 +75,21 @@
     </li>
   </ul>
 
+  {{if .Errors}}
+  <h2><a href="#errors" aria-hidden="true" class="anchor" id="errors"></a>Recent build errors</h2>
+  <p>
+    Below are the Nix build errors for some packages that failed to build recently. If Nixery served you an error, you might be able to find more details about it here.
+  </p>
+
+  {{range .Errors}}
+  <details class="build-error">
+    <summary>{{.Key}}</summary>
+    <pre style="background-color:#f6f8fa;padding:16px;">{{.Error}}</pre>
+  </details>
+  {{end}}
+
+  {{end}}
+
   <h2><a href="#faq" aria-hidden="true" class="anchor" id="faq"></a>FAQ</h2>
 
   <h3>
