@@ -49,10 +49,14 @@ func (g *GitSource) Render(tag string) (string, string) {
 		"url": g.repository,
 	}
 
-	// The 'git' source requires a tag to be present. If the user
-	// has not specified one, it is assumed that 'HEAD' should be used.
+	// If the user has not specified a non-default tag,
+	// use $NIXERY_DEFAULT_TAG or HEAD as the tag.
 	if tag == "latest" || tag == "" {
-		tag = "HEAD"
+		if default_tag := os.Getenv("NIXERY_DEFAULT_TAG"); default_tag != "" {
+			tag = default_tag
+		} else {
+			tag = "HEAD"
+		}
 	}
 
 	if commitRegex.MatchString(tag) {
