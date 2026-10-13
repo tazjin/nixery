@@ -287,6 +287,7 @@ func main() {
 		Pop:         pop,
 		Storage:     s,
 		UploadMutex: kmutex.New(),
+		BuildMutex:  kmutex.New(),
 		Errors:      builder.NewErrorCache(15),
 	}
 

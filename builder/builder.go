@@ -42,6 +42,7 @@ type State struct {
 	Pop         layers.Popularity
 	UploadMutex *kmutex.Kmutex
 	Errors      *ErrorCache
+	BuildMutex  *kmutex.Kmutex
 }
 
 // Architecture represents the possible CPU architectures for which
@@ -420,6 +421,13 @@ func uploadHashLayer(ctx context.Context, s *State, key string, mrating uint64, 
 
 func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, error) {
 	key := s.Cfg.Pkgs.CacheKey(image.Packages, image.Tag)
+
+	// Synchronise concurrent requests for the same image
+	if key != "" {
+		s.BuildMutex.Lock(image.Name + ":" + image.Tag)
+		defer s.BuildMutex.Unlock(image.Name + ":" + image.Tag)
+	}
+
 	if key != "" {
 		if m, c := manifestFromCache(ctx, s, key); c {
 			return &BuildResult{
