@@ -94,9 +94,7 @@ func (n *NixChannel) CacheKey(pkgs []string, tag string) string {
 	}
 
 	unhashed := strings.Join(pkgs, "") + n.channel
-	hashed := fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
-
-	return hashed
+	return fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 }
 
 type PkgsPath struct {
@@ -108,10 +106,8 @@ func (p *PkgsPath) Render(tag string) (string, string) {
 }
 
 func (p *PkgsPath) CacheKey(pkgs []string, tag string) string {
-	// Path-based builds are not currently cacheable because we
-	// have no local hash of the package folder's state easily
-	// available.
-	return ""
+	unhashed := strings.Join(pkgs, "") + tag + p.path
+	return fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 }
 
 // Retrieve a package source from the environment. If no source is
