@@ -83,7 +83,7 @@
 
   {{range .Errors}}
   <details class="build-error">
-    <summary>{{.Key}}</summary>
+    <summary>{{.Key}}{{if gt .Count 1}} ({{.Count}} times){{end}}</summary>
     <pre style="background-color:#f6f8fa;padding:16px;">{{.Error}}</pre>
   </details>
   {{end}}

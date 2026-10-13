@@ -1,7 +1,6 @@
 package builder
 
 import (
-	"container/ring"
 	"slices"
 	"sync"
 )
@@ -9,70 +8,54 @@ import (
 type BuildError struct {
 	Key   string
 	Error string
+	Count int
 }
 
 type ErrorCache struct {
-	size    int
-	current *ring.Ring
-	errors  map[string]*ring.Ring
-	lock    sync.RWMutex
+	size  int
+	lock  sync.RWMutex
+	order []*BuildError
 }
 
 func NewErrorCache(size int) *ErrorCache {
-	r := ring.New(max(size, 1))
-	errors := make(map[string]*ring.Ring)
-
 	return &ErrorCache{
-		size:    size,
-		current: r,
-		errors:  errors,
+		size: max(size, 1),
 	}
 }
 
 func (ec *ErrorCache) AddError(key, errorMsg string) {
-	exists := func() bool {
-		ec.lock.RLock()
-		defer ec.lock.RUnlock()
-		_, ok := ec.errors[key]
-		return ok
-	}()
-	if exists {
-		return
-	}
-
 	ec.lock.Lock()
 	defer ec.lock.Unlock()
 
-	if ec.current.Value != nil {
-		if existingError, ok := ec.current.Value.(*BuildError); ok {
-			delete(ec.errors, existingError.Key)
+	// known errors get "bumped" to the front if they reoccur
+	idx := slices.IndexFunc(ec.order, func(e *BuildError) bool {
+		return e.Key == key
+	})
+
+	if idx != -1 {
+		ec.order[idx].Count++
+		ec.order[idx].Error = errorMsg
+
+		if idx != 0 {
+			elem := ec.order[idx]
+			ec.order = slices.Delete(ec.order, idx, idx+1)
+			ec.order = append([]*BuildError{elem}, ec.order...)
 		}
+
+		return
 	}
 
-	newError := &BuildError{
-		Key:   key,
-		Error: errorMsg,
-	}
+	be := &BuildError{Key: key, Error: errorMsg, Count: 1}
+	ec.order = append([]*BuildError{be}, ec.order...)
 
-	ec.current.Value = newError
-	ec.errors[key] = ec.current
-	ec.current = ec.current.Next()
+	if len(ec.order) > ec.size {
+		ec.order = ec.order[:len(ec.order)-1]
+	}
 }
 
 func (ec *ErrorCache) GetAllErrors() []*BuildError {
 	ec.lock.RLock()
 	defer ec.lock.RUnlock()
 
-	var result []*BuildError
-
-	ec.current.Do(func(value any) {
-		if value != nil {
-			if err, ok := value.(*BuildError); ok {
-				result = append(result, err)
-			}
-		}
-	})
-
-	slices.Reverse(result) // newest first
-	return result
+	return slices.Clone(ec.order)
 }
