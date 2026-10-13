@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -429,6 +430,17 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 	}
 
 	if key != "" {
+		if br, cached := s.Cache.buildResultFromCache(key); cached {
+			if br.Error == "" && br.Error == "not_found" {
+				return br, nil
+			}
+
+			// bump the error on the start page even if cached
+			s.Errors.AddError(image.Name, br.Error)
+
+			return nil, errors.New(br.Error)
+		}
+
 		if m, c := manifestFromCache(ctx, s, key); c {
 			return &BuildResult{
 				Manifest: m,
@@ -438,18 +450,22 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 
 	imageResult, err := prepareImage(s, image)
 	if err != nil {
+		s.cacheBuildFailure(key, &BuildResult{Error: err.Error()})
 		return nil, err
 	}
 
 	if imageResult.Error != "" {
-		return &BuildResult{
+		br := &BuildResult{
 			Error: imageResult.Error,
 			Pkgs:  imageResult.Pkgs,
-		}, nil
+		}
+		s.cacheBuildFailure(key, br)
+		return br, nil
 	}
 
 	layers, err := prepareLayers(ctx, s, image, imageResult)
 	if err != nil {
+		s.cacheBuildFailure(key, &BuildResult{Error: err.Error()})
 		return nil, err
 	}
 
@@ -472,15 +488,25 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 	if _, err = uploadHashLayer(ctx, s, c.SHA256, 0, lw); err != nil {
 		slog.Error("failed to upload config", "err", err, "image", image.Name, "tag", image.Tag)
 
+		s.cacheBuildFailure(key, &BuildResult{Error: err.Error()})
 		return nil, err
-	}
-
-	if key != "" {
-		go cacheManifest(ctx, s, key, m)
 	}
 
 	result := BuildResult{
 		Manifest: m,
 	}
+
+	if key != "" {
+		s.Cache.cacheBuildResult(key, &result)
+		go cacheManifest(ctx, s, key, m)
+	}
+
 	return &result, nil
+}
+
+// cache build failures *except* timeouts (they might be transient)
+func (s *State) cacheBuildFailure(key string, br *BuildResult) {
+	if key != "" && !strings.Contains(strings.ToLower(br.Error), "timeout") {
+		s.Cache.cacheBuildResult(key, br)
+	}
 }

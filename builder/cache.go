@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/google/nixery/manifest"
 	"log/slog"
@@ -24,6 +25,10 @@ type LocalCache struct {
 	// Layer cache
 	lmtx   sync.RWMutex
 	lcache map[string]manifest.Entry
+
+	// Build result cache
+	brmtx   sync.RWMutex
+	brcache map[string]buildResultEntry
 }
 
 // Creates an in-memory cache and ensures that the local file path for
@@ -36,8 +41,9 @@ func NewCache() (LocalCache, error) {
 	}
 
 	return LocalCache{
-		mdir:   path + "/",
-		lcache: make(map[string]manifest.Entry),
+		mdir:    path + "/",
+		lcache:  make(map[string]manifest.Entry),
+		brcache: make(map[string]buildResultEntry),
 	}, nil
 }
 
@@ -195,4 +201,46 @@ func cacheLayer(ctx context.Context, s *State, key string, entry manifest.Entry)
 	}
 
 	return
+}
+
+const buildFailureTTL = 1 * time.Hour
+
+type buildResultEntry struct {
+	result  *BuildResult
+	expires time.Time
+}
+
+func (e *buildResultEntry) expired() bool {
+	return !e.expires.IsZero() && time.Now().After(e.expires)
+}
+
+func (c *LocalCache) buildResultFromCache(key string) (*BuildResult, bool) {
+	c.brmtx.RLock()
+	entry, ok := c.brcache[key]
+
+	if ok && !entry.expired() {
+		c.brmtx.RUnlock()
+		return entry.result, true
+	}
+	c.brmtx.RUnlock()
+
+	if ok { // entry has expired
+		c.brmtx.Lock()
+		delete(c.brcache, key)
+		c.brmtx.Unlock()
+	}
+
+	return nil, false
+}
+
+func (c *LocalCache) cacheBuildResult(key string, br *BuildResult) {
+	entry := buildResultEntry{result: br}
+	if br.Error != "" {
+		entry.expires = time.Now().Add(buildFailureTTL)
+	}
+
+	c.brmtx.Lock()
+	defer c.brmtx.Unlock()
+
+	c.brcache[key] = entry
 }
