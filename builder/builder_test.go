@@ -85,6 +85,26 @@ func TestImageFromNameShellMultiple(t *testing.T) {
 	if diff := cmp.Diff(expected, image, ignoreArch); diff != "" {
 		t.Fatalf("Image(\"shell/htop\", \"latest\") mismatch:\n%s", diff)
 	}
+
+	imageNonLeading := ImageFromName("htop/shell/git", "latest")
+	expectedNonLeading := Image{
+		Name: "git/htop/shell",
+		Tag:  "latest",
+		Packages: []string{
+			"bashInteractive",
+			"cacert",
+			"coreutils",
+			"git",
+			"htop",
+			"iana-etc",
+			"moreutils",
+			"nano",
+		},
+	}
+
+	if diff := cmp.Diff(expectedNonLeading, imageNonLeading, ignoreArch); diff != "" {
+		t.Fatalf("Image(\"htop/shell/git\", \"latest\") mismatch:\n%s", diff)
+	}
 }
 
 func TestImageFromNameShellArm64(t *testing.T) {

@@ -133,30 +133,31 @@ type ImageResult struct {
 // include sets of packages or trigger certain image-building
 // behaviour.
 //
-// Meta-packages must be specified as the first packages in an image
-// name.
-//
 // Currently defined meta-packages are:
 //
-// * `shell`: Includes bash, coreutils and other common command-line tools
-// * `arm64`: Causes Nixery to build images for the ARM64 architecture
+//   - `shell`: Includes bash, coreutils and other common command-line tools.
+//     Can be specified at any position in the image name.
+//   - `arm64`: Causes Nixery to build images for the ARM64 architecture.
+//     Must be specified at the front of the image name.
 func metaPackages(packages []string) (*Architecture, []string) {
 	arch := &amd64
 
 	var metapkgs []string
-	lastMeta := 0
-	for idx, p := range packages {
-		if p == "shell" || p == "arm64" {
+	var filtered []string
+	prefix := true
+	for _, p := range packages {
+		switch {
+		case p == "shell":
 			metapkgs = append(metapkgs, p)
-			lastMeta = idx + 1
-		} else {
-			break
+		case p == "arm64" && prefix:
+			metapkgs = append(metapkgs, p)
+		default:
+			prefix = false
+			filtered = append(filtered, p)
 		}
 	}
 
-	// Chop off the meta-packages from the front of the package
-	// list
-	packages = packages[lastMeta:]
+	packages = filtered
 
 	for _, p := range metapkgs {
 		switch p {

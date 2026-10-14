@@ -25,6 +25,8 @@ let
   # through revision numbers.
   nixery-commit-hash = "depot";
 in
+
+assert !(pkgs ? shell); # if this fails, we need to restrict the meta-package
 depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
   nixery-prepare-image = import ./prepare-image { inherit pkgs; };
