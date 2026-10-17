@@ -218,11 +218,12 @@ func callNix(program, image string, args []string, ec *ErrorCache) ([]byte, erro
 	if err = cmd.Wait(); err != nil {
 		slog.Info("failed to invoke Nix", "err", err, "image", image, "cmd", program, "stdout", stdout, "stderr", stderr)
 		if stderr != "" {
-			// Nix output might contain stuff other than errors, trim it:
-			if !strings.HasPrefix(stderr, "error:") {
-				if i := strings.Index(stderr, "\nerror:"); i != -1 {
-					stderr = stderr[i+1:]
-				}
+			// Nix output might contain stuff other than errors
+			// (e.g. substituter progress); the most relevant
+			// error information is in the last "error:" block.
+			// This is a no-op when there is only one "error:".
+			if i := strings.LastIndex(stderr, "error:"); i != -1 {
+				stderr = stderr[i:]
 			}
 			ec.AddError(image, stderr)
 			return nil, errors.New(stderr)
