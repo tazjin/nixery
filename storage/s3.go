@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -24,6 +25,7 @@ type S3Backend struct {
 	bucket         string
 	linkExpiration time.Duration
 	client         *s3.Client
+	uploader       *manager.Uploader
 }
 
 // Constructs a new S3 bucket backend based on the configured
@@ -93,6 +95,7 @@ func NewS3Backend() (*S3Backend, error) {
 		bucket:         bucket,
 		linkExpiration: linkExpiration,
 		client:         client,
+		uploader:       manager.NewUploader(client),
 	}, nil
 }
 
@@ -116,7 +119,7 @@ func (b *S3Backend) Persist(ctx context.Context, key, contentType string, f Pers
 		done <- uploadErr
 	}()
 
-	_, err := b.client.PutObject(ctx, &s3.PutObjectInput{
+	_, err := b.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(b.bucket),
 		Key:         aws.String(key),
 		Body:        pr,
