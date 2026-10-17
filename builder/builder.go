@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/nixery/config"
 	"github.com/google/nixery/layers"
@@ -40,10 +41,20 @@ type State struct {
 	Storage     storage.Backend
 	Cache       *LocalCache
 	Cfg         config.Config
-	Pop         layers.Popularity
+	pop         atomic.Pointer[layers.Popularity]
 	UploadMutex *kmutex.Kmutex
 	Errors      *ErrorCache
 	BuildMutex  *kmutex.Kmutex
+}
+
+// Popularity returns the currently loaded package popularity data.
+func (s *State) Popularity() *layers.Popularity {
+	return s.pop.Load()
+}
+
+// SetPopularity replaces the package popularity data (e.g. after a reload).
+func (s *State) SetPopularity(p layers.Popularity) {
+	s.pop.Store(&p)
 }
 
 // Architecture represents the possible CPU architectures for which
@@ -268,7 +279,7 @@ func prepareImage(s *State, image *Image) (*ImageResult, error) {
 // added only after successful uploads, which guarantees that entries
 // retrieved from the cache are present in the bucket.
 func prepareLayers(ctx context.Context, s *State, image *Image, result *ImageResult) ([]manifest.Entry, error) {
-	grouped := layers.GroupLayers(&result.Graph, &s.Pop, LayerBudget)
+	grouped := layers.GroupLayers(&result.Graph, s.Popularity(), LayerBudget)
 
 	var entries []manifest.Entry
 

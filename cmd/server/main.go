@@ -22,8 +22,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"github.com/google/nixery/assets"
@@ -83,25 +85,36 @@ var (
 )
 
 // Downloads the popularity information for the package set from the
-// URL specified in Nixery's configuration.
-func downloadPopularity(url string) (layers.Popularity, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
+// Loads popularity information from the URL or file path specified
+// in Nixery's configuration.
+func loadPopularity(src string) (layers.Popularity, error) {
+	var j []byte
 
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("popularity download from '%s' returned status: %s\n", url, resp.Status)
-	}
+	if strings.HasPrefix(src, "http") {
+		resp, err := http.Get(src)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
 
-	j, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+		if resp.StatusCode != 200 {
+			return nil, fmt.Errorf("popularity download from '%s' returned status: %s\n", src, resp.Status)
+		}
+
+		j, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		file, err := os.ReadFile(src)
+		if err != nil {
+			return nil, err
+		}
+		j = file
 	}
 
 	var pop layers.Popularity
-	err = json.Unmarshal(j, &pop)
-	if err != nil {
+	if err := json.Unmarshal(j, &pop); err != nil {
 		return nil, err
 	}
 
@@ -294,22 +307,48 @@ func main() {
 
 	var pop layers.Popularity
 	if cfg.PopUrl != "" {
-		pop, err = downloadPopularity(cfg.PopUrl)
+		// A failure to load popularity data is not fatal (layering just gets worse).
+		var err error
+		pop, err = loadPopularity(cfg.PopUrl)
 		if err != nil {
-			slog.Error("failed to fetch popularity information", "err", err, "popURL", cfg.PopUrl)
-			os.Exit(1)
+			slog.Warn("failed to load popularity information, continuing without", "err", err, "popularity source", cfg.PopUrl)
+		} else {
+			slog.Info("loaded popularity information", "packages", len(pop))
 		}
 	}
 
 	state := builder.State{
 		Cache:       &cache,
 		Cfg:         cfg,
-		Pop:         pop,
 		Storage:     s,
 		UploadMutex: kmutex.New(),
 		BuildMutex:  kmutex.New(),
 		Errors:      builder.NewErrorCache(15),
 	}
+	state.SetPopularity(pop)
+
+	// Reload the popularity data when Nixery receives SIGHUP. It's done this
+	// way because channel bumps are async: the channel updates, and then we
+	// want to fetch popcount without Nixery downtime; running on old popcount
+	// for a few minutes is not critical.
+	go func() {
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGHUP)
+		for range ch {
+			if cfg.PopUrl == "" {
+				continue
+			}
+
+			newpop, err := loadPopularity(cfg.PopUrl)
+			if err != nil {
+				slog.Warn("failed to reload popularity information, keeping previous data", "err", err, "popularity source", cfg.PopUrl)
+				continue
+			}
+
+			state.SetPopularity(newpop)
+			slog.Info("reloaded popularity information", "packages", len(newpop))
+		}
+	}()
 
 	slog.Info("starting Nixery", "version", version, "port", cfg.Port)
 
