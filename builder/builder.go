@@ -42,6 +42,7 @@ type State struct {
 	Cache       *LocalCache
 	Cfg         config.Config
 	pop         atomic.Pointer[layers.Popularity]
+	popVer      atomic.Pointer[string]
 	UploadMutex *kmutex.Kmutex
 	Errors      *ErrorCache
 	BuildMutex  *kmutex.Kmutex
@@ -55,6 +56,13 @@ func (s *State) Popularity() *layers.Popularity {
 // SetPopularity replaces the package popularity data (e.g. after a reload).
 func (s *State) SetPopularity(p layers.Popularity) {
 	s.pop.Store(&p)
+
+	// Popularity hash is fed into manifest key - this ensures that reloading
+	// popularity causes manifests to be rebuilt.
+	data, _ := json.Marshal(p)
+	hash := sha256.Sum256(data)
+	ver := fmt.Sprintf("%x", hash[:8])
+	s.popVer.Store(&ver)
 }
 
 // Architecture represents the possible CPU architectures for which
@@ -441,6 +449,10 @@ func uploadHashLayer(ctx context.Context, s *State, key string, mrating uint64, 
 
 func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, error) {
 	key := s.Cfg.Pkgs.CacheKey(image.Packages, image.Tag)
+
+	if v := s.popVer.Load(); v != nil {
+		key += "-" + *v
+	}
 
 	// Synchronise concurrent requests for the same image
 	if key != "" {
