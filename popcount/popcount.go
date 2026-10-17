@@ -214,7 +214,12 @@ func main() {
 	go finaliser(count, downloaders, narinfos)
 
 	counts := make(map[string]int)
+	processed := 0
 	for ni := range narinfos {
+		if processed++; processed%10000 == 0 {
+			log.Printf("processed %d/%d narinfos\n", processed, len(paths))
+		}
+
 		refs := narInfoToRefs(ni)
 		for _, ref := range refs {
 			if ref == "" {
@@ -231,6 +236,8 @@ func main() {
 			delete(counts, k)
 		}
 	}
+
+	log.Printf("counted references of %d packages, %d have more than one\n", processed, len(counts))
 
 	bytes, err := json.Marshal(counts)
 	failOn(err, "failed to marshal popularity data")

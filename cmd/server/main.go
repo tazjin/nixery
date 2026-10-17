@@ -336,6 +336,7 @@ func main() {
 		signal.Notify(ch, syscall.SIGHUP)
 		for range ch {
 			if cfg.PopUrl == "" {
+				slog.Warn("received SIGHUP, but no popularity source is configured")
 				continue
 			}
 
