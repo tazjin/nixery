@@ -130,6 +130,10 @@ These extra configuration variables must be set to configure storage backends:
 * `AWS_REGION`: AWS region for the S3 bucket (**optional** for `s3`, if omitted, will use `us-east-1`, which will work with most non-AWS S3 providers)
 * `S3_ACCESS_KEY`: S3 access key (**optional** for `s3`, uses IAM roles if unset)
 * `S3_SECRET_KEY`: S3 secret key (**optional** for `s3`, uses IAM roles if unset)
+* `S3_USE_PATH_STYLE`: Whether to address the bucket using path-style addressing
+  (`endpoint/bucket/...`, the default and usually required by S3-compatible
+  services) instead of virtual-host addressing (`bucket.endpoint/...`)
+  (**optional** for `s3`)
 
 ### Background
 

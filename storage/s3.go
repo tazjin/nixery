@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -57,13 +58,25 @@ func NewS3Backend() (*S3Backend, error) {
 		))
 	}
 
+	// Default to path-style addressing, which is required by most
+	// S3-compatible services, but vendors such as AWS may need
+	// virtual-host addressing instead.
+	usePathStyle := true
+	if v := os.Getenv("S3_USE_PATH_STYLE"); v != "" {
+		var err error
+		usePathStyle, err = strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse S3_USE_PATH_STYLE: %w", err)
+		}
+	}
+
 	awsCfg, err := config.LoadDefaultConfig(context.Background(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.UsePathStyle = true
+		o.UsePathStyle = usePathStyle
 	})
 
 	linkExpires := os.Getenv("S3_LINK_EXPIRATION")
