@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"text/template"
 
 	"github.com/google/nixery/assets"
@@ -119,6 +120,22 @@ type registryErrors struct {
 	Errors []registryError `json:"errors"`
 }
 
+const maxClientErrorMessageLen = 512
+
+// Truncate & clean up build error messages fed back to registry clients
+// (otherwise the output looks VERY confusing).
+func errorMessage(err error) string {
+	msg := strings.Join(strings.Fields(err.Error()), " ")
+	msg = strings.TrimPrefix(strings.TrimPrefix(msg, "error:"), " ")
+	msg = "Nix build failed: " + msg
+	if len(msg) <= maxClientErrorMessageLen {
+		return msg
+	}
+
+	// kept generic, so that people running private registries (if those exist) don't get confused
+	return msg[:maxClientErrorMessageLen] + " [...] (see the recent build errors on the Nixery homepage for details)"
+}
+
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	err := registryErrors{
 		Errors: []registryError{
@@ -127,8 +144,8 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	}
 	json, _ := json.Marshal(err)
 
-	w.WriteHeader(status)
 	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(status)
 	w.Write(json)
 }
 
@@ -145,7 +162,9 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	buildResult, err := builder.BuildImage(r.Context(), h.state, &image)
 
 	if err != nil {
-		writeError(w, 500, "UNKNOWN", "image build failure")
+		// The error body is only surfaced to clients (e.g.
+		// docker) when the status is in the 4xx range.
+		writeError(w, 404, "MANIFEST_UNKNOWN", errorMessage(err))
 
 		slog.Error("failed to build image manifest", "err", err, "image", name, "tag", tag)
 

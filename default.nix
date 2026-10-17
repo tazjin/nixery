@@ -31,8 +31,6 @@ depot.nix.readTree.drvTargets rec {
   # Implementation of the Nix image building logic
   nixery-prepare-image = import ./prepare-image { inherit pkgs; };
 
-
-
   nixery-popcount = callPackage ./popcount { };
 
   # Build Nixery's Go code, resulting in the binaries used for various
