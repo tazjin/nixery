@@ -200,6 +200,7 @@ func callNix(program, image string, args []string, ec *ErrorCache) ([]byte, erro
 		slog.Info("failed to invoke Nix", "err", err, "image", image, "cmd", program, "stdout", stdout, "stderr", stderr)
 		if stderr != "" {
 			ec.AddError(image, stderr)
+			return nil, errors.New(stderr)
 		}
 		return nil, err
 	}
@@ -432,7 +433,7 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 
 	if key != "" {
 		if br, cached := s.Cache.buildResultFromCache(key); cached {
-			if br.Error == "" && br.Error == "not_found" {
+			if br.Error == "not_found" {
 				return br, nil
 			}
 
@@ -498,7 +499,6 @@ func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, erro
 	}
 
 	if key != "" {
-		s.Cache.cacheBuildResult(key, &result)
 		go cacheManifest(ctx, s, key, m)
 	}
 
