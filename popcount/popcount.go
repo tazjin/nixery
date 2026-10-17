@@ -2,20 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Popcount fetches popularity information for each store path in a
-// given Nix channel from the upstream binary cache.
+// Nix channel from the upstream binary cache.
 //
 // It does this simply by inspecting the narinfo files, rather than
 // attempting to deal with instantiation of the binary cache.
 //
 // This is *significantly* faster than attempting to realise the whole
 // channel and then calling `nix path-info` on it.
-//
-// TODO(tazjin): Persist intermediate results (references for each
-// store path) to speed up subsequent runs.
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -31,12 +30,6 @@ var pathexp = regexp.MustCompile("/nix/store/([a-z0-9]{32})-(.*)$")
 var refsexp = regexp.MustCompile("(?m:^References: (.*)$)")
 var refexp = regexp.MustCompile("^([a-z0-9]{32})-(.*)$")
 
-type meta struct {
-	name   string
-	url    string
-	commit string
-}
-
 type item struct {
 	name string
 	hash string
@@ -48,51 +41,30 @@ func failOn(err error, msg string) {
 	}
 }
 
-func channelMetadata(channel string) meta {
-	// This needs an HTTP client that does not follow redirects
-	// because the channel URL is used explicitly for other
-	// downloads.
-	c := http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+// Resolves a channel URL (e.g. from //third_party/sources) to the
+// release directory containing store-paths.xz. URLs pointing directly
+// at a file inside the directory (such as nixexprs.tar.xz) are trimmed
+// to that directory.
+func channelURL(url string) string {
+	if !strings.HasPrefix(url, "http") {
+		log.Fatalf("expected a channel URL, got '%s'", url)
 	}
 
-	resp, err := c.Get(fmt.Sprintf("https://channels.nixos.org/%s", channel))
-	failOn(err, "failed to retrieve channel metadata")
-
-	loc, err := resp.Location()
-	failOn(err, "no redirect location given for channel")
-
-	// TODO(tazjin): These redirects are currently served as 301s, but
-	// should (and used to) be 302s. Check if/when this is fixed and
-	// update accordingly.
-	if !(resp.StatusCode == 301 || resp.StatusCode == 302) {
-		log.Fatalf("Expected redirect for channel, but received '%s'\n", resp.Status)
-	}
-
-	commitResp, err := c.Get(fmt.Sprintf("%s/git-revision", loc.String()))
-	failOn(err, "failed to retrieve commit for channel")
-
-	defer commitResp.Body.Close()
-	commit, err := io.ReadAll(commitResp.Body)
-	failOn(err, "failed to read commit from response")
-	if commitResp.StatusCode != 200 {
-		log.Fatalf("non-success status code when fetching commit: %s (%v)", string(commit), commitResp.StatusCode)
-	}
-
-	return meta{
-		name:   channel,
-		url:    loc.String(),
-		commit: string(commit),
-	}
+	return url[:strings.LastIndex(url, "/")+1]
 }
 
-func downloadStorePaths(c *meta) []string {
-	resp, err := client.Get(fmt.Sprintf("%s/store-paths.xz", c.url))
+func downloadStorePaths(c string) []string {
+	resp, err := client.Get(c + "store-paths.xz")
 	failOn(err, "failed to download store-paths.xz")
 	defer resp.Body.Close()
 
+	paths, err := io.ReadAll(resp.Body)
+	failOn(err, "failed to download store-paths.xz")
+	if resp.StatusCode != 200 {
+		log.Fatalf("failed to download store-paths.xz: %s (%s)", string(paths), resp.Status)
+	}
+
+	// decompress via xzcat, to avoid a decompression dependency
 	cmd := exec.Command("xzcat")
 	stdin, err := cmd.StdinPipe()
 	failOn(err, "failed to open xzcat stdin")
@@ -102,23 +74,23 @@ func downloadStorePaths(c *meta) []string {
 
 	go func() {
 		defer stdin.Close()
-		io.Copy(stdin, resp.Body)
+		io.Copy(stdin, bytes.NewReader(paths))
 	}()
 
 	err = cmd.Start()
 	failOn(err, "failed to start xzcat")
 
-	paths, err := io.ReadAll(stdout)
+	decompressed, err := io.ReadAll(stdout)
 	failOn(err, "failed to read uncompressed store paths")
 
 	err = cmd.Wait()
 	failOn(err, "xzcat failed to decompress")
 
-	return strings.Split(string(paths), "\n")
+	return strings.Split(string(decompressed), "\n")
 }
 
-func storePathToItem(path string) *item {
-	res := pathexp.FindStringSubmatch(path)
+func storePathToItem(p string) *item {
+	res := pathexp.FindStringSubmatch(p)
 	if len(res) != 3 {
 		return nil
 	}
@@ -132,11 +104,7 @@ func storePathToItem(path string) *item {
 func narInfoToRefs(narinfo string) []string {
 	all := refsexp.FindAllStringSubmatch(narinfo, 1)
 
-	if len(all) != 1 {
-		log.Fatalf("failed to parse narinfo:\n%s\nfound: %v\n", narinfo, all[0])
-	}
-
-	if len(all[0]) != 2 {
+	if len(all) != 1 || len(all[0]) != 2 {
 		// no references found
 		return []string{}
 	}
@@ -144,6 +112,7 @@ func narInfoToRefs(narinfo string) []string {
 	refs := strings.Split(all[0][1], " ")
 	for i, s := range refs {
 		if s == "" {
+			refs[i] = ""
 			continue
 		}
 
@@ -154,8 +123,8 @@ func narInfoToRefs(narinfo string) []string {
 	return refs
 }
 
-func fetchNarInfo(i *item) (string, error) {
-	file, err := os.ReadFile("popcache/" + i.hash)
+func fetchNarInfo(i *item, cache string) (string, error) {
+	file, err := os.ReadFile(cache + "/" + i.hash)
 	if err == nil {
 		return string(file), nil
 	}
@@ -170,7 +139,7 @@ func fetchNarInfo(i *item) (string, error) {
 	narinfo, err := io.ReadAll(resp.Body)
 
 	// best-effort write the file to the cache
-	os.WriteFile("popcache/"+i.hash, narinfo, 0644)
+	os.WriteFile(cache+"/"+i.hash, narinfo, 0644)
 
 	return string(narinfo), err
 }
@@ -180,9 +149,9 @@ func fetchNarInfo(i *item) (string, error) {
 //
 // If there is no data remaining in the queue, the downloader exits
 // and informs the finaliser queue about having exited.
-func downloader(queue chan *item, narinfos chan string, downloaders chan struct{}) {
+func downloader(queue chan *item, narinfos chan string, downloaders chan struct{}, cache string) {
 	for i := range queue {
-		ni, err := fetchNarInfo(i)
+		ni, err := fetchNarInfo(i, cache)
 		if err != nil {
 			log.Printf("couldn't fetch narinfo for %s: %s\n", i.name, err)
 			continue
@@ -208,28 +177,22 @@ func finaliser(count int, downloaders chan struct{}, narinfos chan string) {
 }
 
 func main() {
-	if len(os.Args) == 1 {
-		log.Fatalf("Nix channel must be specified as first argument")
+	cache := flag.String("cache", "popcache", "directory for caching downloaded narinfos")
+	flag.Parse()
+
+	if flag.NArg() != 1 {
+		log.Fatalf("usage: popcount [-cache dir] <channel-url>")
 	}
 
-	err := os.MkdirAll("popcache", 0755)
-	if err != nil {
-		log.Fatalf("Failed to create 'popcache' directory in current folder: %s\n", err)
-	}
+	url := channelURL(flag.Arg(0))
+	log.Printf("Counting package popularity for channel at %s\n", url)
 
-	count := 42 // concurrent downloader count
-	channel := os.Args[1]
-	log.Printf("Fetching metadata for channel '%s'\n", channel)
+	err := os.MkdirAll(*cache, 0755)
+	failOn(err, "failed to create cache directory")
 
-	meta := channelMetadata(channel)
-	log.Printf("Pinned channel '%s' to commit '%s'\n", meta.name, meta.commit)
-
-	paths := downloadStorePaths(&meta)
+	paths := downloadStorePaths(url)
 	log.Printf("Fetching references for %d store paths\n", len(paths))
 
-	// Download paths concurrently and receive their narinfos into
-	// a channel. Data is collated centrally into a map and
-	// serialised at the /very/ end.
 	downloadQueue := make(chan *item, len(paths))
 	for _, p := range paths {
 		if i := storePathToItem(p); i != nil {
@@ -241,10 +204,11 @@ func main() {
 	// Set up a task tracking channel for parsing & counting
 	// narinfos, as well as a coordination channel for signaling
 	// that all downloads have finished
+	count := 42 // concurrent downloader count
 	narinfos := make(chan string, 50)
 	downloaders := make(chan struct{}, count)
 	for i := 0; i < count; i++ {
-		go downloader(downloadQueue, narinfos, downloaders)
+		go downloader(downloadQueue, narinfos, downloaders, *cache)
 	}
 
 	go finaliser(count, downloaders, narinfos)
@@ -268,12 +232,9 @@ func main() {
 		}
 	}
 
-	bytes, _ := json.Marshal(counts)
-	outfile := fmt.Sprintf("popularity-%s-%s.json", meta.name, meta.commit)
-	err = os.WriteFile(outfile, bytes, 0644)
-	if err != nil {
-		log.Fatalf("Failed to write output to '%s': %s\n", outfile, err)
-	}
+	bytes, err := json.Marshal(counts)
+	failOn(err, "failed to marshal popularity data")
 
-	log.Printf("Wrote output to '%s'\n", outfile)
+	_, err = os.Stdout.Write(bytes)
+	failOn(err, "failed to write popularity data")
 }
