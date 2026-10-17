@@ -197,6 +197,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 	// especially important as clients may start to fetch it by digest
 	// as soon as they see a response.
 	sha256sum := fmt.Sprintf("%x", sha256.Sum256(manifest))
+	w.Header().Add("Docker-Content-Digest", "sha256:"+sha256sum)
 	path := "layers/" + sha256sum
 	ctx := r.Context()
 
