@@ -229,6 +229,7 @@ func (h *registryHandler) serveManifestTag(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	w.Header().Set("Content-Length", fmt.Sprint(len(manifest)))
 	w.Write(manifest)
 }
 
