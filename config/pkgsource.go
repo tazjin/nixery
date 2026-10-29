@@ -71,7 +71,7 @@ func (g *GitSource) CacheKey(pkgs []string, tag, arch string) string {
 		return ""
 	}
 
-	unhashed := strings.Join(pkgs, "") + tag + arch
+	unhashed := strings.Join(append(pkgs, tag, arch), "/")
 	hashed := fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 
 	return hashed
@@ -93,7 +93,7 @@ func (n *NixChannel) CacheKey(pkgs []string, tag, arch string) string {
 		return ""
 	}
 
-	unhashed := strings.Join(pkgs, "") + n.channel + arch
+	unhashed := strings.Join(append(pkgs, n.channel, arch), "/")
 	return fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 }
 
@@ -106,7 +106,7 @@ func (p *PkgsPath) Render(tag string) (string, string) {
 }
 
 func (p *PkgsPath) CacheKey(pkgs []string, tag, arch string) string {
-	unhashed := strings.Join(pkgs, "") + tag + p.path + arch
+	unhashed := strings.Join(append(pkgs, tag, p.path, arch), "/")
 	return fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 }
 
