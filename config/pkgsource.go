@@ -27,7 +27,7 @@ type PkgSource interface {
 	// The empty string means that this value is not cacheable due
 	// to the package source being a moving target (such as a
 	// channel).
-	CacheKey(pkgs []string, tag string) string
+	CacheKey(pkgs []string, tag, arch string) string
 }
 
 type GitSource struct {
@@ -64,14 +64,14 @@ func (g *GitSource) Render(tag string) (string, string) {
 	return "git", string(j)
 }
 
-func (g *GitSource) CacheKey(pkgs []string, tag string) string {
+func (g *GitSource) CacheKey(pkgs []string, tag, arch string) string {
 	// Only full commit hashes can be used for caching, as
 	// everything else is potentially a moving target.
 	if !commitRegex.MatchString(tag) {
 		return ""
 	}
 
-	unhashed := strings.Join(pkgs, "") + tag
+	unhashed := strings.Join(pkgs, "") + tag + arch
 	hashed := fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 
 	return hashed
@@ -85,7 +85,7 @@ func (n *NixChannel) Render(tag string) (string, string) {
 	return "nixpkgs", n.channel
 }
 
-func (n *NixChannel) CacheKey(pkgs []string, tag string) string {
+func (n *NixChannel) CacheKey(pkgs []string, tag, arch string) string {
 	// Since Nix channels are downloaded from the nixpkgs-channels
 	// Github, users can specify full commit hashes as the
 	// "channel", in which case builds are cacheable.
@@ -93,7 +93,7 @@ func (n *NixChannel) CacheKey(pkgs []string, tag string) string {
 		return ""
 	}
 
-	unhashed := strings.Join(pkgs, "") + n.channel
+	unhashed := strings.Join(pkgs, "") + n.channel + arch
 	return fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 }
 
@@ -105,8 +105,8 @@ func (p *PkgsPath) Render(tag string) (string, string) {
 	return "path", p.path
 }
 
-func (p *PkgsPath) CacheKey(pkgs []string, tag string) string {
-	unhashed := strings.Join(pkgs, "") + tag + p.path
+func (p *PkgsPath) CacheKey(pkgs []string, tag, arch string) string {
+	unhashed := strings.Join(pkgs, "") + tag + p.path + arch
 	return fmt.Sprintf("%x", sha1.Sum([]byte(unhashed)))
 }
 

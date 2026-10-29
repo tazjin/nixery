@@ -449,7 +449,7 @@ func uploadHashLayer(ctx context.Context, s *State, key string, mrating uint64, 
 }
 
 func BuildImage(ctx context.Context, s *State, image *Image) (*BuildResult, error) {
-	key := s.Cfg.Pkgs.CacheKey(image.Packages, image.Tag)
+	key := s.Cfg.Pkgs.CacheKey(image.Packages, image.Tag, image.Arch.imageArch)
 
 	if v := s.popVer.Load(); v != nil {
 		key += "-" + *v
